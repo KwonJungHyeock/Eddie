@@ -1,0 +1,74 @@
+# ============================================================
+# EDDIE .gitignore
+# 중요: API 키 / 비밀번호가 들어가는 .env 파일은 반드시 제외
+# ============================================================
+
+# --- 환경변수 & 비밀 (절대 커밋 금지) ---
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+credentials.json
+token.json
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+venv/
+.venv/
+env/
+ENV/
+.python-version
+
+# --- Node.js (Phase 3+) ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- 빌드 출력 ---
+dist/
+build/
+out/
+*.exe
+*.app
+
+# --- Electron (Phase 3+) ---
+release/
+
+# --- 로그 ---
+logs/*.log
+logs/*.txt
+!logs/.gitkeep
+
+# --- 오디오 임시 파일 (Phase 2+) ---
+*.wav
+*.mp3
+!docs/**/*.wav
+!docs/**/*.mp3
+
+# --- IDE ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- 임시 ---
+*.tmp
+*.bak
+~$*

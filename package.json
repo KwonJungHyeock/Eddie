@@ -1,0 +1,10 @@
+{
+  "name": "eddie",
+  "version": "0.1.0-phase0",
+  "description": "EDDIE — Eduino's Digital Development Intelligent Engineer",
+  "private": true,
+  "scripts": {
+    "phase3-init": "echo Phase 3 진입 시 Electron 의존성 설치"
+  },
+  "_comment": "Phase 3 (기본 GUI) 진입 시 Electron 의존성 추가 예정"
+}
