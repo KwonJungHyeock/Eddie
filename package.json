@@ -1,10 +1,14 @@
 {
   "name": "eddie",
-  "version": "0.1.0-phase0",
+  "version": "0.3.0-phase3",
   "description": "EDDIE — Eduino's Digital Development Intelligent Engineer",
   "private": true,
+  "main": "electron/main.js",
   "scripts": {
-    "phase3-init": "echo Phase 3 진입 시 Electron 의존성 설치"
+    "start": "electron .",
+    "phase3-init": "echo Phase 3 GUI - electron ."
   },
-  "_comment": "Phase 3 (기본 GUI) 진입 시 Electron 의존성 추가 예정"
+  "devDependencies": {
+    "electron": "^33.0.0"
+  }
 }
