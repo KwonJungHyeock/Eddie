@@ -15,6 +15,7 @@ MOD-STT-001 — 음성 인식 (Phase 2 Step 2-4)
 
 from __future__ import annotations
 
+import os
 import sys
 import time
 from pathlib import Path
@@ -58,10 +59,50 @@ class SpeechToText:
         self._model = None  # lazy load
         self._resolved_device = None  # 실제 사용된 device 기록
 
+    @staticmethod
+    def _register_cuda_dll_paths() -> None:
+        """Windows에서 pip 설치된 nvidia-* 패키지의 DLL 폴더를 등록.
+        faster-whisper(ctranslate2)가 cublas64_12.dll, cudnn 등을 찾게 한다.
+        CPU 모드거나 비Windows면 아무것도 안 함 (안전)."""
+        import sys as _sys
+        if _sys.platform != "win32":
+            return
+        if not hasattr(os, "add_dll_directory"):
+            return
+        try:
+            import site
+            import glob
+            # site-packages 안의 nvidia/*/bin 폴더들을 DLL 경로로 등록
+            search_roots = []
+            for sp in site.getsitepackages():
+                search_roots.append(sp)
+            # venv 환경 대비
+            search_roots.append(str(Path(_sys.executable).parent / "Lib" / "site-packages"))
+            seen = set()
+            for root in search_roots:
+                nvidia_dir = Path(root) / "nvidia"
+                if not nvidia_dir.exists():
+                    continue
+                # nvidia/<lib>/bin 패턴
+                for bin_dir in glob.glob(str(nvidia_dir / "*" / "bin")):
+                    if bin_dir not in seen and Path(bin_dir).exists():
+                        try:
+                            os.add_dll_directory(bin_dir)
+                            seen.add(bin_dir)
+                        except OSError:
+                            pass
+        except Exception:
+            # DLL 경로 등록 실패는 치명적 아님 (CPU 폴백 가능)
+            pass
+
     def _ensure_model(self) -> None:
         """첫 호출 시 모델 로드 (처음 실행 시 다운로드 가능)."""
         if self._model is not None:
             return
+        # Windows GPU: pip 설치된 nvidia 라이브러리 DLL 경로 등록
+        # (cublas64_12.dll 등을 faster-whisper 가 찾도록)
+        self._register_cuda_dll_paths()
+
         try:
             from faster_whisper import WhisperModel
         except ImportError as e:
@@ -178,7 +219,7 @@ def _demo():
     LINE = "=" * 68
     print()
     print(LINE)
-    print("  MOD-STT-001 음성 인식 데모 (faster-whisper · base · int8)")
+    print("  MOD-STT-001 음성 인식 데모 (faster-whisper · medium · cpu)")
     print(LINE)
 
     # 마이크 import
@@ -189,7 +230,7 @@ def _demo():
         from src.perception.audio_input import MicrophoneCapture, MicrophoneError
 
     mic = MicrophoneCapture()
-    stt = SpeechToText(model_size="large-v3", device="cpu", language="ko")
+    stt = SpeechToText(model_size="medium", device="cpu", language="ko")
 
     # 모드 선택
     print()
