@@ -49,7 +49,7 @@ def main() -> None:
     # 컴포넌트 초기화
     print("\n  컴포넌트 초기화 중...")
     mic = MicrophoneCapture()
-    stt = SpeechToText(model_size="base", compute_type="int8", language="ko")
+    stt = SpeechToText(model_size="large-v3", device="cpu", language="ko")
     core = EddieCore()
     tts = TextToSpeech()  # 기본 프리셋 jarvis-1
 

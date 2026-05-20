@@ -38,22 +38,25 @@ class SpeechToText:
 
     def __init__(
         self,
-        model_size: str = "base",
-        device: str = "cpu",
-        compute_type: str = "int8",
+        model_size: str = "large-v3",
+        device: str = "auto",
+        compute_type: str = "auto",
         language: Optional[str] = "ko",
     ) -> None:
         """
         model_size: tiny / base / small / medium / large-v3
-        device: cpu (4GB RAM PC) / cuda (NVIDIA GPU)
-        compute_type: int8 (RAM 절약) / float16 / float32
+        device: "auto" (GPU 우선, 실패 시 CPU) / "cuda" / "cpu"
+        compute_type: "auto" (device에 맞춤) / int8 / float16 / float32
         language: 'ko' (한국어 고정) 또는 None (자동 감지)
+
+        device="auto": CUDA 사용 가능하면 GPU(float16), 아니면 CPU(int8)로 자동 폴백.
         """
         self.model_size = model_size
         self.device = device
         self.compute_type = compute_type
         self.language = language
         self._model = None  # lazy load
+        self._resolved_device = None  # 실제 사용된 device 기록
 
     def _ensure_model(self) -> None:
         """첫 호출 시 모델 로드 (처음 실행 시 다운로드 가능)."""
@@ -66,21 +69,41 @@ class SpeechToText:
                 "faster-whisper 미설치. pip install faster-whisper"
             ) from e
 
-        print(f"  Whisper 모델 로드 중: {self.model_size} ({self.compute_type}, {self.device})")
-        print(f"  (첫 실행 시 모델 다운로드 발생 가능 — 인터넷 필요)")
+        # device/compute_type 결정 (auto면 GPU 우선)
+        attempts = []
+        if self.device == "auto":
+            attempts = [("cuda", "float16"), ("cpu", "int8")]
+        elif self.device == "cuda":
+            ct = self.compute_type if self.compute_type != "auto" else "float16"
+            attempts = [("cuda", ct), ("cpu", "int8")]  # cuda 실패 시 cpu 폴백
+        else:
+            ct = self.compute_type if self.compute_type != "auto" else "int8"
+            attempts = [("cpu", ct)]
 
         t_start = time.time()
-        try:
-            self._model = WhisperModel(
-                self.model_size,
-                device=self.device,
-                compute_type=self.compute_type,
-            )
-        except Exception as e:
-            raise SpeechToTextError(f"모델 로드 실패: {e}") from e
+        last_error = None
+        for dev, ct in attempts:
+            print(f"  Whisper 모델 로드 시도: {self.model_size} ({ct}, {dev})")
+            print(f"  (첫 실행 시 모델 다운로드 발생 가능 — 인터넷 필요)")
+            try:
+                self._model = WhisperModel(
+                    self.model_size,
+                    device=dev,
+                    compute_type=ct,
+                )
+                self._resolved_device = dev
+                elapsed = time.time() - t_start
+                print(f"  모델 로드 완료: {dev.upper()} 사용 ({elapsed:.1f}초)")
+                if dev == "cpu" and len(attempts) > 1:
+                    print(f"  ⚠ GPU 사용 불가 — CPU 폴백. (CUDA/cuDNN 미설치 가능성)")
+                return
+            except Exception as e:
+                last_error = e
+                if dev == "cuda":
+                    print(f"  GPU 로드 실패, CPU로 폴백합니다: {str(e)[:100]}")
+                continue
 
-        elapsed = time.time() - t_start
-        print(f"  모델 로드 완료 ({elapsed:.1f}초)")
+        raise SpeechToTextError(f"모델 로드 실패 (모든 시도): {last_error}")
 
     def transcribe(self, audio: Union[np.ndarray, str, Path]) -> dict:
         """
@@ -166,7 +189,7 @@ def _demo():
         from src.perception.audio_input import MicrophoneCapture, MicrophoneError
 
     mic = MicrophoneCapture()
-    stt = SpeechToText(model_size="base", compute_type="int8", language="ko")
+    stt = SpeechToText(model_size="large-v3", device="cpu", language="ko")
 
     # 모드 선택
     print()

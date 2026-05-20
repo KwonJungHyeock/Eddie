@@ -41,11 +41,13 @@ class MicrophoneCapture:
     CHANNELS = 1
     DTYPE = np.float32
 
-    def __init__(self, device: Optional[int] = None) -> None:
+    def __init__(self, device: Optional[int] = None, auto_select: bool = True) -> None:
         """
-        device: None 이면 OS 기본 마이크.
-                정수면 sd.query_devices() 결과의 인덱스.
+        device: None + auto_select=True 이면 16kHz 마이크 자동 선택.
+                정수면 sd.query_devices() 결과의 인덱스 직접 지정.
         """
+        if device is None and auto_select:
+            device = self.find_best_device()
         self.device = device
 
     # === 디바이스 정보 ===
@@ -85,6 +87,36 @@ class MicrophoneCapture:
             }
         except Exception as e:
             return {"index": None, "name": f"감지 실패: {e}", "available": False}
+
+    @staticmethod
+    def find_best_device() -> Optional[int]:
+        """16kHz 우선, 그다음 입력 채널 있는 첫 디바이스를 자동 선택.
+        WEBCAM/USB 마이크의 16kHz 모드를 우선 (Whisper 표준 매칭).
+        반환: device index 또는 None (기본 디바이스 사용)."""
+        try:
+            devices = sd.query_devices()
+        except Exception:
+            return None
+
+        candidates_16k = []
+        candidates_other = []
+        for i, dev in enumerate(devices):
+            if dev["max_input_channels"] <= 0:
+                continue
+            sr = int(dev.get("default_samplerate", 0))
+            name = dev.get("name", "")
+            # Microsoft 사운드 매퍼/주 드라이버는 MME라 에러 잦음 → 스킵 우선
+            is_mapper = "사운드 매퍼" in name or "사운드 캡처" in name or "Sound Mapper" in name
+            if sr == 16000 and not is_mapper:
+                candidates_16k.append(i)
+            elif not is_mapper:
+                candidates_other.append(i)
+
+        if candidates_16k:
+            return candidates_16k[0]
+        if candidates_other:
+            return candidates_other[0]
+        return None
 
     # === 녹음 ===
 

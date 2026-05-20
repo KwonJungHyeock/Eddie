@@ -32,7 +32,7 @@ class EddieCore:
         self.mock_mode: bool = mock_env in ("true", "1", "yes", "on")
 
         # 사용자 호칭 (페르소나 정의서 PRS-001 기준)
-        self.user_title: str = os.getenv("EDDIE_USER_TITLE", "소장님")
+        self.user_title: str = os.getenv("EDDIE_USER_TITLE", "정혁님")
 
         # 시스템 프롬프트 로드 (PRS-001 8장)
         self.system_prompt: str = self._load_system_prompt()
@@ -82,41 +82,41 @@ class EddieCore:
 
         # 입력 키워드별 분기
         if any(kw in msg for kw in ["안녕", "hi", "hello", "ㅎㅇ"]):
-            return f"(MOCK) 안녕하세요, {title}. EDDIE입니다. 무엇을 도와드릴까요?"
+            return f"안녕하세요, {title}. 에디입니다. 무엇을 도와드릴까요?"
 
         if any(kw in msg for kw in ["누구", "이름", "정체"]):
             return (
-                f"(MOCK) 저는 EDDIE입니다. "
+                f"저는 에디입니다. "
                 f"Eduino's Digital Development Intelligent Engineer의 약자이며, "
                 f"{title}의 전담 AI 비서로 동작합니다."
             )
 
         if any(kw in msg for kw in ["뭐 해", "뭐해", "할 수", "할수", "능력", "기능"]):
             return (
-                f"(MOCK) 현재 Phase 1 개발 단계입니다. "
+                f"현재 개발 단계입니다. "
                 f"본 단계 완료 후 웹 검색, 파일 조작, 브라우저 제어, 이메일 발송을 "
                 f"음성 명령으로 수행할 예정입니다."
             )
 
         if any(kw in msg for kw in ["감사", "고마", "thank"]):
-            return f"(MOCK) 별말씀을요, {title}."
+            return f"별말씀을요, {title}."
 
         if any(kw in msg for kw in ["검색", "찾아", "알려줘"]):
             return (
-                f"(MOCK) 검색 도구는 Step 1-5에서 구현 예정입니다. "
+                f"검색 기능은 곧 연결될 예정입니다. "
                 f"현재 단계에서는 검색을 실행할 수 없습니다."
             )
 
         if any(kw in msg for kw in ["파일", "폴더", "정리"]):
             return (
-                f"(MOCK) 파일 조작 도구는 Step 1-4에서 구현 예정입니다. "
+                f"파일 조작 기능은 곧 연결될 예정입니다. "
                 f"현재 단계에서는 파일 시스템에 접근하지 않습니다."
             )
 
         # 기본 응답 (입력 일부 에코)
         preview = user_message[:40] + ("..." if len(user_message) > 40 else "")
         return (
-            f"(MOCK) 알겠습니다, {title}. "
+            f"알겠습니다, {title}. "
             f'현재는 MOCK 모드라 실제 작업을 수행하지 않습니다. '
             f'입력하신 내용: "{preview}"'
         )

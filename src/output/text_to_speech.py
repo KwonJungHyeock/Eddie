@@ -1,27 +1,25 @@
 """
-MOD-TTS-001 — 음성 합성 + 오디오 후처리 (Step 2-3 미세 조정판)
+MOD-TTS-001 — 음성 합성 + 오디오 후처리 (완전판)
 
 기술 기반: Microsoft Edge-TTS + ffmpeg 필터 체인
-의도: 자비스 톤에 가까운 한국어 AI 비서 목소리 구현.
-      정혁님 피드백 (2026-05-20):
-        - low 프리셋이 한국어에서 가장 자연스러움
-        - 기본 속도 느림 → 자연스러운 속도로 조정 필요
-        - 자비스 목소리(폴 베타니)에 가깝게 — 한국어 TTS 한계 내에서 최선
+음성 프로필: ko-KR-InJoonNeural
+기본 프리셋: jarvis-1 (정혁님 확정 — low 후처리 + 빠른 속도)
 
-3가지 자비스 톤 변형:
-  - "jarvis-1" : low + rate +15%
-  - "jarvis-2" : low + rate +12% + pitch -2Hz       ← 권장 기본값
-  - "jarvis-3" : low + rate +15% + pitch -3Hz + 저음 보강
+프리셋:
+  - raw      : 후처리 없음, 기본 속도
+  - low      : 가벼운 후처리, 기본 속도
+  - jarvis-1 : low + rate +30% (EDDIE 기본 ★)
+  - jarvis-2 : low + rate +12% + pitch -2Hz
+  - jarvis-3 : low + rate +15% + pitch -3Hz + 저음 보강
 
-추가 프리셋 (비교용):
-  - "raw"      : 후처리 없음, 기본 속도
-  - "low"      : 가벼운 후처리, 기본 속도
+TTS 정제: 영문 EDDIE→에디, (MOCK)/(SYSTEM) 등 시스템 태그 제거
 """
 
 from __future__ import annotations
 
 import asyncio
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -33,10 +31,6 @@ class TextToSpeechError(Exception):
     """TTS 도구 동작 실패."""
 
 
-# ===========================================================================
-# 후처리 필터 체인 (ffmpeg)
-# ===========================================================================
-
 FILTER_LOW = (
     "equalizer=f=120:width_type=h:width=80:g=1.5,"
     "equalizer=f=1500:width_type=h:width=600:g=-1,"
@@ -44,33 +38,24 @@ FILTER_LOW = (
     "loudnorm=I=-16:TP=-1.5:LRA=11"
 )
 FILTER_JARVIS_BOOST = (
-    # jarvis-3 전용 - low 기반 + 저음 살짝 더 부스트
     "equalizer=f=100:width_type=h:width=80:g=2.5,"
     "equalizer=f=1500:width_type=h:width=600:g=-1.2,"
     "aecho=0.9:0.42:55:0.22,"
     "loudnorm=I=-16:TP=-1.5:LRA=11"
 )
 
-
-# ===========================================================================
-# 프리셋 정의 — (rate, pitch, filter_chain)
-# ===========================================================================
-
 PRESETS = {
     "raw":       {"rate": "+0%",  "pitch": "+0Hz",  "filter": None},
     "low":       {"rate": "+0%",  "pitch": "+0Hz",  "filter": FILTER_LOW},
-    "jarvis-1":  {"rate": "+15%", "pitch": "+0Hz",  "filter": FILTER_LOW},
+    "jarvis-1":  {"rate": "+30%", "pitch": "+0Hz",  "filter": FILTER_LOW},
+    "jarvis-pro": {"rate": "+25%", "pitch": "-3Hz", "filter": None},
     "jarvis-2":  {"rate": "+12%", "pitch": "-2Hz",  "filter": FILTER_LOW},
     "jarvis-3":  {"rate": "+15%", "pitch": "-3Hz",  "filter": FILTER_JARVIS_BOOST},
 }
 
 
 class TextToSpeech:
-    """Edge-TTS + ffmpeg 후처리 기반 음성 합성 도구.
-
-    음성 프로필: ko-KR-InJoonNeural (ARC-001 v0.3 / DSN-001 v0.1 결정)
-    후처리 기본값: jarvis-2 (정혁님 피드백 기반 권장 프리셋)
-    """
+    """Edge-TTS + ffmpeg 후처리 기반 음성 합성 도구."""
 
     DEFAULT_VOICE = "ko-KR-InJoonNeural"
     AVAILABLE_VOICES_KO = (
@@ -79,7 +64,7 @@ class TextToSpeech:
         "ko-KR-BongJinNeural",
         "ko-KR-GookMinNeural",
     )
-    DEFAULT_PRESET = "jarvis-1"
+    DEFAULT_PRESET = "jarvis-pro"
 
     def __init__(
         self,
@@ -89,8 +74,7 @@ class TextToSpeech:
     ) -> None:
         if voice not in self.AVAILABLE_VOICES_KO and not voice.startswith("ko-KR-"):
             raise TextToSpeechError(
-                f"지원하지 않는 음성: {voice}. "
-                f"한국어 옵션: {self.AVAILABLE_VOICES_KO}"
+                f"지원하지 않는 음성: {voice}. 한국어 옵션: {self.AVAILABLE_VOICES_KO}"
             )
         if preset not in PRESETS:
             raise TextToSpeechError(
@@ -100,16 +84,24 @@ class TextToSpeech:
         self.preset = preset
         self.volume = volume
 
+    @staticmethod
+    def _clean_for_speech(text: str) -> str:
+        """TTS 발음 교정: 영문 EDDIE->에디, 시스템 태그 제거."""
+        text = re.sub(r"\((MOCK|SYSTEM|REAL|DEBUG)\)\s*", "", text)
+        text = re.sub(r"EDDIE", "에디", text, flags=re.IGNORECASE)
+        return text.strip()
+
     def synthesize(
         self,
         text: str,
         output_path: str,
         preset: Optional[str] = None,
     ) -> dict:
-        """텍스트를 MP3로 합성 + 후처리."""
         text = (text or "").strip()
         if not text:
             return {"status": "error", "message": "빈 텍스트 거부"}
+
+        text = self._clean_for_speech(text)
 
         chosen = preset or self.preset
         if chosen not in PRESETS:
@@ -119,7 +111,6 @@ class TextToSpeech:
         out = Path(output_path).expanduser().resolve()
         out.parent.mkdir(parents=True, exist_ok=True)
 
-        # 1단계: Edge-TTS 합성 (rate/pitch 적용)
         raw_tmp = Path(tempfile.gettempdir()) / f"eddie_tts_raw_{os.getpid()}.mp3"
         try:
             self._run_async(self._async_synthesize(
@@ -131,7 +122,6 @@ class TextToSpeech:
         if not raw_tmp.exists() or raw_tmp.stat().st_size == 0:
             return {"status": "error", "message": "raw 음성 결과가 비어있음"}
 
-        # 2단계: 후처리
         filter_chain = spec["filter"]
         if filter_chain is None:
             try:
@@ -171,7 +161,6 @@ class TextToSpeech:
         }
 
     def speak(self, text: str, preset: Optional[str] = None) -> dict:
-        """합성 + 후처리 후 즉시 재생."""
         tmp_path = Path(tempfile.gettempdir()) / f"eddie_tts_{os.getpid()}.mp3"
         result = self.synthesize(text, str(tmp_path), preset=preset)
         if result["status"] != "ok":
@@ -183,8 +172,6 @@ class TextToSpeech:
             result["played"] = False
             result["play_error"] = str(e)
         return result
-
-    # === 내부 메서드 ===
 
     @staticmethod
     def _run_async(coro):
@@ -238,10 +225,6 @@ class TextToSpeech:
         play(audio)
 
 
-# ===========================================================================
-# 데모 — 3가지 자비스 변형 + low 기준점 비교
-# ===========================================================================
-
 def _demo():
     if sys.platform == "win32":
         try:
@@ -249,69 +232,31 @@ def _demo():
         except AttributeError:
             pass
 
-    LINE = "=" * 70
+    LINE = "=" * 68
 
-    # 사용자 인자: 직접 텍스트 지정 시 jarvis-2 (기본)로 재생
     if len(sys.argv) > 1:
         user_text = " ".join(sys.argv[1:])
-        print()
-        print(LINE)
-        print(f"  사용자 입력 (jarvis-2 기본 프리셋): {user_text}")
-        print(LINE)
+        print(f"\n  입력 (jarvis-1): {user_text}")
         tts = TextToSpeech()
-        print("  재생 시작...")
+        print("  재생 중...")
         result = tts.speak(user_text)
         for k, v in result.items():
             print(f"  {k}: {v}")
         return
 
-    # 기본 시연: 4가지 비교
-    test_text = (
-        "정혁님, EDDIE입니다. "
-        "자비스 톤 미세 조정 결과를 확인해 보시고, "
-        "가장 마음에 드는 프리셋을 알려주십시오."
-    )
-
+    test_text = "정혁님, 검색을 완료했습니다. 결과는 세 건입니다."
     print()
     print(LINE)
-    print("  MOD-TTS-001 Step 2-3 미세 조정 — 자비스 톤 비교")
+    print("  MOD-TTS-001 데모 (기본 프리셋 jarvis-pro, raw + rate +28%)")
     print(LINE)
-    print(f"  테스트 문장: {test_text}")
-    print()
-    print("  비교 순서:")
-    print("    (1) LOW      — 기준점 (이전 선택, 속도 느림)")
-    print("    (2) JARVIS-1 — low + 빠른 속도 (+15%)")
-    print("    (3) JARVIS-2 — low + 속도 (+12%) + 피치 약간 낮음 ★ 권장 기본")
-    print("    (4) JARVIS-3 — 더 빠르고 더 깊은 음색")
-    print(LINE)
-
-    presets_in_order = [
-        ("low",      "(1) LOW       — 기준점 (이전 선택, 속도 느림)"),
-        ("jarvis-1", "(2) JARVIS-1  — low + 자연 속도 (+15%)"),
-        ("jarvis-2", "(3) JARVIS-2  — low + 자연 속도 (+12%) + 깊이 (-2Hz)  ★ 권장"),
-        ("jarvis-3", "(4) JARVIS-3  — 더 빠른 (+15%) + 더 깊은 (-3Hz) + 저음 보강"),
-    ]
-
+    print(f"  문장: {test_text}")
+    print("  재생 중...")
     tts = TextToSpeech()
-
-    for preset_name, description in presets_in_order:
-        print()
-        print(description)
-        spec = PRESETS[preset_name]
-        print(f"    파라미터: rate={spec['rate']}, pitch={spec['pitch']}")
-        print("    재생 중...")
-        result = tts.speak(test_text, preset=preset_name)
-        if result["status"] != "ok":
-            print(f"    [에러] {result.get('message', '알 수 없음')}")
-            break
-        print(f"    완료. 파일 크기: {result['size']:,} bytes")
-        import time
-        time.sleep(0.7)
-
-    print()
+    result = tts.speak(test_text)
+    for k, v in result.items():
+        print(f"  {k}: {v}")
     print(LINE)
-    print("  데모 완료. 마음에 드는 프리셋을 알려주세요.")
-    print("  추가 미세 조정도 가능합니다 (예: 속도 더 빠르게, 피치 더 낮게).")
+    print("  데모 완료")
     print(LINE)
 
 
