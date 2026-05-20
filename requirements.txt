@@ -1,31 +1,8 @@
-# ============================================================
-# EDDIE Python 의존성
-# Phase 별로 누적 추가
-# ============================================================
-
-# --- Phase 0 (현재): 기본 환경 ---
-python-dotenv>=1.0.0           # .env 로드
-
-# --- Phase 1: Claude API + 도구 ---
-anthropic>=0.40.0              # Anthropic SDK (MOD-LLM-001)
-httpx>=0.25.0                  # HTTP 클라이언트 (Brave Search)
-pydantic>=2.5.0                # 데이터 검증
-
-# --- Phase 2: 음성 입출력 (Phase 2 진입 시 주석 해제) ---
-# faster-whisper>=1.0.0        # STT (MOD-STT-001)
-# sounddevice>=0.4.6           # 마이크 캡처 (MOD-IN-001)
-# numpy>=1.24.0
-# edge-tts>=6.1.0              # TTS (MOD-TTS-001)
-# pydub>=0.25.1                # 후처리
-# soundfile>=0.12.0
-
-# --- Phase 5: 자동화 (Phase 5 진입 시 주석 해제) ---
-# playwright>=1.40.0           # 브라우저 (MOD-TOL-003)
-# google-auth>=2.25.0          # Gmail OAuth (MOD-TOL-004)
-# google-auth-oauthlib>=1.2.0
-# google-api-python-client>=2.110.0
-
-# --- 개발 도구 ---
-pytest>=7.4.0                  # 테스트
-black>=23.12.0                 # 포매터
-ruff>=0.1.0                    # 린터
+python-dotenv>=1.0.0
+anthropic>=0.40.0
+httpx>=0.25.0
+pydantic>=2.5.0
+send2trash>=1.8.2
+pytest>=7.4.0
+black>=23.12.0
+ruff>=0.1.0
