@@ -1107,8 +1107,23 @@ document.addEventListener('keydown', (e) => {
   if (map[e.key]) setState(map[e.key]);
 });
 
-// 초기 상태
-setState('listening');
+// 초기 상태 (대기)
+setState('idle');
+
+// ── Electron 연동: 음성 백엔드 상태 수신 ──────────────
+// main.js 가 eddie_state.json 을 폴링해서 보내주는 상태로 자동 전환.
+// (브라우저 단독 실행 시 eddieAPI 없음 → 하단 버튼 수동 조작 가능)
+if (window.eddieAPI && typeof window.eddieAPI.onStateUpdate === 'function') {
+  window.eddieAPI.onStateUpdate((data) => {
+    if (data && data.state) {
+      setState(data.state);
+      // speaking 시 응답 텍스트가 있으면 표시
+      if (data.state === 'speaking' && data.detail && data.detail.text) {
+        typeText(data.detail.text);
+      }
+    }
+  });
+}
 </script>
 
 </body>
