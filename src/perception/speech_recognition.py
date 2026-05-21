@@ -61,38 +61,38 @@ class SpeechToText:
 
     @staticmethod
     def _register_cuda_dll_paths() -> None:
-        """Windows에서 pip 설치된 nvidia-* 패키지의 DLL 폴더를 등록.
-        faster-whisper(ctranslate2)가 cublas64_12.dll, cudnn 등을 찾게 한다.
-        CPU 모드거나 비Windows면 아무것도 안 함 (안전)."""
+        """Windows GPU: nvidia-* 패키지의 DLL 폴더를 PATH 및 DLL 검색경로에 등록.
+        ctranslate2(faster-whisper 엔진)가 cublas64_12.dll, cudnn*.dll 을 찾게 한다.
+        (add_dll_directory 만으로는 ctranslate2가 못 찾아 PATH 직접 추가가 필요)
+        CPU 모드/비Windows면 무해하게 통과."""
         import sys as _sys
         if _sys.platform != "win32":
             return
-        if not hasattr(os, "add_dll_directory"):
-            return
         try:
-            import site
-            import glob
-            # site-packages 안의 nvidia/*/bin 폴더들을 DLL 경로로 등록
-            search_roots = []
-            for sp in site.getsitepackages():
-                search_roots.append(sp)
-            # venv 환경 대비
-            search_roots.append(str(Path(_sys.executable).parent / "Lib" / "site-packages"))
-            seen = set()
-            for root in search_roots:
-                nvidia_dir = Path(root) / "nvidia"
-                if not nvidia_dir.exists():
-                    continue
-                # nvidia/<lib>/bin 패턴
-                for bin_dir in glob.glob(str(nvidia_dir / "*" / "bin")):
-                    if bin_dir not in seen and Path(bin_dir).exists():
-                        try:
-                            os.add_dll_directory(bin_dir)
-                            seen.add(bin_dir)
-                        except OSError:
-                            pass
+            from pathlib import Path as _P
+            # venv site-packages/nvidia/<lib>/bin 경로들 수집
+            base = _P(_sys.executable).parent.parent / "Lib" / "site-packages" / "nvidia"
+            if not base.exists():
+                return
+            bin_dirs = []
+            for sub in ("cublas", "cudnn"):
+                bin_dir = base / sub / "bin"
+                if bin_dir.exists():
+                    bin_dirs.append(str(bin_dir))
+            if not bin_dirs:
+                return
+            # 1) PATH 환경변수 앞에 추가 (ctranslate2 가 참조)
+            existing = os.environ.get("PATH", "")
+            new_path = os.pathsep.join(bin_dirs + [existing])
+            os.environ["PATH"] = new_path
+            # 2) add_dll_directory 도 병행 (이중 안전)
+            if hasattr(os, "add_dll_directory"):
+                for d in bin_dirs:
+                    try:
+                        os.add_dll_directory(d)
+                    except OSError:
+                        pass
         except Exception:
-            # DLL 경로 등록 실패는 치명적 아님 (CPU 폴백 가능)
             pass
 
     def _ensure_model(self) -> None:
@@ -173,7 +173,7 @@ class SpeechToText:
             segments_iter, info = self._model.transcribe(
                 audio_input,
                 language=self.language,
-                beam_size=5,
+                beam_size=1,
                 vad_filter=True,  # Whisper 내부 VAD로 침묵 구간 자동 제거
             )
 
@@ -219,7 +219,7 @@ def _demo():
     LINE = "=" * 68
     print()
     print(LINE)
-    print("  MOD-STT-001 음성 인식 데모 (faster-whisper · medium · cpu)")
+    print("  MOD-STT-001 음성 인식 데모 (faster-whisper · large-v3 · GPU auto)")
     print(LINE)
 
     # 마이크 import
@@ -230,7 +230,7 @@ def _demo():
         from src.perception.audio_input import MicrophoneCapture, MicrophoneError
 
     mic = MicrophoneCapture()
-    stt = SpeechToText(model_size="medium", device="cpu", language="ko")
+    stt = SpeechToText(model_size="large-v3", device="auto", language="ko")
 
     # 모드 선택
     print()

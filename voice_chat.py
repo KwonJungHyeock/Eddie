@@ -65,12 +65,23 @@ def _process_turn(audio, stt, core, tts, bus, log) -> None:
     eddie_text = core.chat(user_text)
     log(f"  에디: \"{eddie_text}\"")
 
-    # TTS → speaking
-    bus.set_state("speaking", detail={"text": eddie_text})
+    # TTS: 먼저 합성(재생 X) + 길이 측정
     log("  음성 합성 중...")
-    tts_result = tts.speak(eddie_text)
+    tts_result = tts.synthesize_only(eddie_text)
     if tts_result["status"] != "ok":
         log(f"  [TTS 에러] {tts_result.get('message')}")
+        bus.set_state("idle")
+        return
+
+    duration = tts_result.get("duration", 0.0)
+
+    # 자막 발행(duration 포함) + 음성 재생 동시 시작
+    # HUD는 duration에 맞춰 자막을 타이핑 → 음성과 함께 끝남
+    bus.set_state("speaking", detail={"text": eddie_text, "duration": duration})
+    try:
+        tts.play_file(tts_result["path"])  # 블로킹 재생
+    except Exception as e:
+        log(f"  [재생 에러] {e}")
 
     bus.set_state("idle")
 
@@ -88,7 +99,7 @@ def run_gui_mode():
 
     print("\n  컴포넌트 초기화 중...")
     mic = MicrophoneCapture()
-    stt = SpeechToText(model_size="medium", device="cpu", language="ko")
+    stt = SpeechToText(model_size="large-v3", device="auto", language="ko")
     core = EddieCore()
     tts = TextToSpeech()
     bus = FileStateBus()
@@ -174,7 +185,7 @@ def run_console_mode():
     print(LINE)
 
     mic = MicrophoneCapture()
-    stt = SpeechToText(model_size="medium", device="cpu", language="ko")
+    stt = SpeechToText(model_size="large-v3", device="auto", language="ko")
     core = EddieCore()
     tts = TextToSpeech()
     bus = FileStateBus()

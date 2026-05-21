@@ -210,6 +210,32 @@ class TextToSpeech:
         subprocess.run(cmd, check=True, capture_output=True)
 
     @staticmethod
+    def _get_duration(path: str) -> float:
+        """ffprobe 로 오디오 길이(초) 측정. 실패 시 0.0."""
+        try:
+            result = subprocess.run(
+                ["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
+                 "-of", "default=noprint_wrappers=1:nokey=1", path],
+                capture_output=True, text=True, check=True,
+            )
+            return float(result.stdout.strip())
+        except (subprocess.CalledProcessError, FileNotFoundError, ValueError):
+            return 0.0
+
+    def synthesize_only(self, text: str, preset: Optional[str] = None) -> dict:
+        """합성만 하고 재생 안 함. 파일 경로 + duration 반환.
+        (자막-음성 동기화용: 호출부가 자막 발행과 재생을 동시에 시작)"""
+        tmp_path = Path(tempfile.gettempdir()) / f"eddie_tts_{os.getpid()}.mp3"
+        result = self.synthesize(text, str(tmp_path), preset=preset)
+        if result["status"] == "ok":
+            result["duration"] = self._get_duration(result["path"])
+        return result
+
+    def play_file(self, path: str) -> None:
+        """이미 합성된 파일을 재생 (블로킹)."""
+        self._play_audio(path)
+
+    @staticmethod
     def _play_audio(path: str) -> None:
         try:
             subprocess.run(

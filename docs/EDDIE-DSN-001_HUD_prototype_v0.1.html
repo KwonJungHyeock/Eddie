@@ -510,16 +510,22 @@ animate();
 
 // ── 상태 전환 ──
 let typingTimer = null;
-function typeText(text) {
+function typeText(text, duration) {
   const el = document.getElementById('response-text');
   if (typingTimer) clearInterval(typingTimer);
   el.innerHTML = '<span class="cursor"></span>';
   let i = 0;
+  // duration(초)이 주어지면 음성 길이에 맞춰 타이핑 속도 계산
+  // 없으면 기본 35ms. 약간 빠르게(0.9배) 해서 자막이 음성보다 살짝 먼저 끝나게.
+  let interval = 35;
+  if (duration && duration > 0 && text.length > 0) {
+    interval = Math.max(12, (duration * 1000 * 0.7) / text.length);
+  }
   typingTimer = setInterval(() => {
     if (i >= text.length) { clearInterval(typingTimer); return; }
     el.innerHTML = text.slice(0, i+1) + '<span class="cursor"></span>';
     i++;
-  }, 35);
+  }, interval);
 }
 
 function setState(name) {
@@ -544,7 +550,7 @@ if (window.eddieAPI && typeof window.eddieAPI.onStateUpdate === 'function') {
     if (data && data.state) {
       setState(data.state);
       if (data.state === 'speaking' && data.detail && data.detail.text) {
-        typeText(data.detail.text);
+        typeText(data.detail.text, data.detail.duration);
       }
     }
   });
