@@ -1,17 +1,20 @@
-// EDDIE Electron 메인 프로세스 (Phase 3 Step 3-3: GUI 음성 연동)
-// HUD HTML 로드 + eddie_state.json 폴링 → HUD로 상태 전달
+// EDDIE Electron 메인 (Phase 3-4 풀 통합)
+// HUD 로드 + voice_chat 자식 프로세스 실행 + 상태 폴링 + 명령 전달
 
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { spawn } = require('child_process');
 
-// 상태 파일 경로 = 프로젝트 루트 (state_bus.py 와 동일 위치)
-// main.js 는 electron/ 안에 있으므로 한 단계 상위가 프로젝트 루트
-const STATE_FILE = path.join(__dirname, '..', 'eddie_state.json');
+const PROJECT_ROOT = path.join(__dirname, '..');
+const STATE_FILE = path.join(PROJECT_ROOT, 'eddie_state.json');
+const COMMAND_FILE = path.join(PROJECT_ROOT, 'eddie_command.json');
 
 let win = null;
 let pollTimer = null;
 let lastState = null;
+let voiceProc = null;
+let cmdSeq = 0;
 
 function createWindow() {
   win = new BrowserWindow({
@@ -29,18 +32,70 @@ function createWindow() {
     },
   });
 
-  const hudPath = path.join(__dirname, '..', 'docs', 'EDDIE-DSN-001_HUD_prototype_v0.1.html');
+  const hudPath = path.join(PROJECT_ROOT, 'docs', 'EDDIE-DSN-001_HUD_prototype_v0.1.html');
   win.loadFile(hudPath);
 
   win.webContents.on('did-finish-load', () => {
     startPolling();
+    startVoiceBackend();
   });
 
   win.on('closed', () => {
     stopPolling();
+    stopVoiceBackend();
     win = null;
   });
 }
+
+// voice_chat.py 를 --gui 모드로 백그라운드 실행
+function startVoiceBackend() {
+  if (voiceProc) return;
+  // venv 의 python 사용 (Windows)
+  const pyExe = process.platform === 'win32'
+    ? path.join(PROJECT_ROOT, 'venv', 'Scripts', 'python.exe')
+    : path.join(PROJECT_ROOT, 'venv', 'bin', 'python');
+
+  voiceProc = spawn(pyExe, ['voice_chat.py', '--gui'], {
+    cwd: PROJECT_ROOT,
+    stdio: 'ignore',  // 로그는 별도 콘솔 불필요 (HUD가 상태 표시)
+  });
+
+  voiceProc.on('error', (err) => {
+    console.error('voice backend 실행 실패:', err);
+  });
+  voiceProc.on('exit', () => {
+    voiceProc = null;
+  });
+}
+
+function stopVoiceBackend() {
+  // stop 명령 발행 후 프로세스 종료
+  try {
+    cmdSeq++;
+    fs.writeFileSync(COMMAND_FILE, JSON.stringify({
+      command: 'stop', seq: cmdSeq, detail: {}, ts: Date.now() / 1000,
+    }), 'utf-8');
+  } catch (e) {}
+  if (voiceProc) {
+    try { voiceProc.kill(); } catch (e) {}
+    voiceProc = null;
+  }
+}
+
+// HUD → Python 명령 (스페이스바 녹음)
+ipcMain.on('eddie-command', (_event, command) => {
+  try {
+    // 기존 seq 읽어서 +1
+    let prev = { seq: 0 };
+    try { prev = JSON.parse(fs.readFileSync(COMMAND_FILE, 'utf-8')); } catch (e) {}
+    cmdSeq = (prev.seq || 0) + 1;
+    fs.writeFileSync(COMMAND_FILE, JSON.stringify({
+      command: command, seq: cmdSeq, detail: { source: 'hud' }, ts: Date.now() / 1000,
+    }), 'utf-8');
+  } catch (e) {
+    console.error('명령 발행 실패:', e);
+  }
+});
 
 function startPolling() {
   stopPolling();
@@ -49,25 +104,19 @@ function startPolling() {
       if (err) return;
       try {
         const parsed = JSON.parse(data);
-        const state = parsed.state;
-        if (state && state !== lastState) {
-          lastState = state;
+        if (parsed.state && parsed.state !== lastState) {
+          lastState = parsed.state;
           if (win && !win.isDestroyed()) {
             win.webContents.send('eddie-state', parsed);
           }
         }
-      } catch (e) {
-        // JSON 파싱 실패 (쓰기 도중) 무시
-      }
+      } catch (e) {}
     });
   }, 200);
 }
 
 function stopPolling() {
-  if (pollTimer) {
-    clearInterval(pollTimer);
-    pollTimer = null;
-  }
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
 }
 
 app.whenReady().then(() => {
@@ -79,5 +128,10 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   stopPolling();
+  stopVoiceBackend();
   if (process.platform !== 'darwin') app.quit();
+});
+
+app.on('before-quit', () => {
+  stopVoiceBackend();
 });

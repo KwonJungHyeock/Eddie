@@ -2,134 +2,83 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<title>EDDIE Visual Prototype v0.1</title>
+<title>EDDIE Visual Prototype v0.2</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Orbitron:wght@400;500;700;900&family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Orbitron:wght@400;500;700;900&family=IBM+Plex+Sans+KR:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root {
-  /* 컬러 시스템 — PRS-001 v0.2 + DSN-001 v0.1 기준 */
-  --bg-deep: #030610;
-  --bg-surface: rgba(10, 16, 32, 0.55);
-  --bg-elevated: rgba(14, 20, 34, 0.85);
-  --border: rgba(0, 217, 255, 0.15);
-  --border-strong: rgba(0, 217, 255, 0.4);
-
+  --bg-deep: #02040c;
   --primary: #00D9FF;
-  --primary-soft: rgba(0, 217, 255, 0.6);
   --primary-glow: rgba(0, 217, 255, 0.4);
-
   --aqua: #00FFE5;
   --aqua-glow: rgba(0, 255, 229, 0.5);
-
   --amber: #FFB845;
   --amber-glow: rgba(255, 184, 69, 0.5);
-
   --steel: #5A8FA8;
-  --steel-soft: rgba(90, 143, 168, 0.6);
-
   --text-primary: #E6F4FF;
   --text-secondary: #8AB8D4;
   --text-muted: #3A5A78;
-  --text-disabled: #1F3245;
 
   --state-color: var(--primary);
   --state-glow: var(--primary-glow);
 }
 
-[data-state="idle"]      { --state-color: var(--steel);    --state-glow: rgba(90, 143, 168, 0.3); }
-[data-state="listening"] { --state-color: var(--primary);  --state-glow: var(--primary-glow); }
-[data-state="thinking"]  { --state-color: var(--amber);    --state-glow: var(--amber-glow); }
-[data-state="speaking"]  { --state-color: var(--aqua);     --state-glow: var(--aqua-glow); }
+[data-state="idle"]      { --state-color: var(--steel);   --state-glow: rgba(90,143,168,0.3); }
+[data-state="listening"] { --state-color: var(--primary); --state-glow: var(--primary-glow); }
+[data-state="thinking"]  { --state-color: var(--amber);   --state-glow: var(--amber-glow); }
+[data-state="speaking"]  { --state-color: var(--aqua);    --state-glow: var(--aqua-glow); }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 html, body {
   background: var(--bg-deep);
   color: var(--text-primary);
-  font-family: 'IBM Plex Sans KR', -apple-system, sans-serif;
-  min-height: 100vh;
+  font-family: 'IBM Plex Sans KR', sans-serif;
+  height: 100vh;
   overflow: hidden;
-  font-feature-settings: "tnum";
 }
 
-body::before, body::after {
-  content: '';
+/* ── 우주 배경 캔버스 ── */
+#space {
   position: fixed;
   inset: 0;
-  pointer-events: none;
-  z-index: 100;
+  z-index: 0;
+  display: block;
 }
 
-/* ── 빛 번짐 비네팅 ───────────────────────────────────── */
-body::before {
-  background: radial-gradient(
-    ellipse at center,
-    transparent 30%,
-    rgba(3, 6, 16, 0.4) 70%,
-    rgba(3, 6, 16, 0.9) 100%
-  );
-}
-
-/* ── 미세 격자 ──────────────────────────────────────── */
-.bg-grid {
+/* ── 성운 글로우 (CSS 그라데이션 레이어) ── */
+.nebula {
   position: fixed;
   inset: 0;
-  background-image:
-    linear-gradient(rgba(0, 217, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 217, 255, 0.04) 1px, transparent 1px);
-  background-size: 80px 80px;
-  mask-image: radial-gradient(ellipse at center, black 0%, transparent 75%);
-  -webkit-mask-image: radial-gradient(ellipse at center, black 0%, transparent 75%);
-  pointer-events: none;
   z-index: 1;
-}
-
-/* ── 스캔 라인 ─────────────────────────────────────── */
-.bg-scan {
-  position: fixed;
-  left: 0;
-  right: 0;
-  height: 200px;
-  background: linear-gradient(
-    180deg,
-    transparent,
-    rgba(0, 217, 255, 0.025),
-    rgba(0, 217, 255, 0.06),
-    rgba(0, 217, 255, 0.025),
-    transparent
-  );
-  animation: scan 9s linear infinite;
   pointer-events: none;
-  z-index: 2;
+  background:
+    radial-gradient(ellipse 40% 50% at 25% 30%, rgba(0, 100, 140, 0.18), transparent 60%),
+    radial-gradient(ellipse 35% 45% at 75% 65%, rgba(60, 30, 120, 0.15), transparent 60%),
+    radial-gradient(ellipse 50% 40% at 50% 80%, rgba(0, 180, 160, 0.10), transparent 70%);
+  animation: nebulaDrift 30s ease-in-out infinite alternate;
+}
+@keyframes nebulaDrift {
+  0%   { transform: scale(1) translate(0, 0); opacity: 0.8; }
+  100% { transform: scale(1.15) translate(2%, -2%); opacity: 1; }
 }
 
-@keyframes scan {
-  0%   { transform: translateY(-200px); opacity: 0; }
-  10%  { opacity: 1; }
-  90%  { opacity: 1; }
-  100% { transform: translateY(100vh); opacity: 0; }
-}
-
-/* ── 노이즈 ──────────────────────────────────────── */
-.bg-noise {
+/* ── 비네팅 ── */
+.vignette {
   position: fixed;
   inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0.85 0 0 0 0 1 0 0 0 0.18 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  opacity: 0.4;
-  mix-blend-mode: overlay;
+  z-index: 2;
   pointer-events: none;
-  z-index: 3;
+  background: radial-gradient(ellipse at center, transparent 35%, rgba(2,4,12,0.5) 75%, rgba(2,4,12,0.92) 100%);
 }
 
-/* ── 코너 프레임 ─────────────────────────────────── */
+/* ── 코너 프레임 ── */
 .frame {
   position: fixed;
-  width: 60px;
-  height: 60px;
+  width: 54px; height: 54px;
+  z-index: 20;
   pointer-events: none;
-  z-index: 50;
-  transition: border-color 0.6s ease;
 }
 .frame::before, .frame::after {
   content: '';
@@ -138,267 +87,94 @@ body::before {
   filter: drop-shadow(0 0 6px var(--state-glow));
   transition: background 0.6s ease;
 }
-.frame::before { width: 14px; height: 1.5px; }
-.frame::after  { width: 1.5px; height: 14px; }
+.frame::before { width: 13px; height: 1.5px; }
+.frame::after  { width: 1.5px; height: 13px; }
+.frame.tl { top: 26px; left: 26px; }
+.frame.tl::before, .frame.tl::after { top: 0; left: 0; }
+.frame.tr { top: 26px; right: 26px; }
+.frame.tr::before { top: 0; right: 0; } .frame.tr::after { top: 0; right: 0; }
+.frame.bl { bottom: 26px; left: 26px; }
+.frame.bl::before, .frame.bl::after { bottom: 0; left: 0; }
+.frame.br { bottom: 26px; right: 26px; }
+.frame.br::before { bottom: 0; right: 0; } .frame.br::after { bottom: 0; right: 0; }
 
-.frame.tl { top: 24px; left: 24px; }
-.frame.tl::before { top: 0; left: 0; }
-.frame.tl::after  { top: 0; left: 0; }
-
-.frame.tr { top: 24px; right: 24px; }
-.frame.tr::before { top: 0; right: 0; }
-.frame.tr::after  { top: 0; right: 0; }
-
-.frame.bl { bottom: 24px; left: 24px; }
-.frame.bl::before { bottom: 0; left: 0; }
-.frame.bl::after  { bottom: 0; left: 0; }
-
-.frame.br { bottom: 24px; right: 24px; }
-.frame.br::before { bottom: 0; right: 0; }
-.frame.br::after  { bottom: 0; right: 0; }
-
-/* ── 메인 컨테이너 ─────────────────────────────── */
-.hud {
-  position: relative;
-  min-height: 100vh;
-  padding: 60px 80px 140px;
-  z-index: 10;
-  display: grid;
-  grid-template-columns: 280px 1fr 280px;
-  grid-template-rows: auto 1fr auto;
-  gap: 28px;
-}
-
-/* ── 상단 바 ─────────────────────────────────── */
+/* ── 상단 바 ── */
 .top {
-  grid-column: 1 / -1;
+  position: fixed;
+  top: 40px; left: 60px; right: 60px;
+  z-index: 15;
   display: flex;
   justify-content: space-between;
-  align-items: flex-end;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--border);
-  transition: border-color 0.6s ease;
+  align-items: flex-start;
 }
-
 .brand {
-  display: flex;
-  align-items: baseline;
-  gap: 20px;
-}
-.brand-mark {
   font-family: 'Audiowide', sans-serif;
-  font-size: 28px;
-  letter-spacing: 0.18em;
+  font-size: 26px;
+  letter-spacing: 0.2em;
   color: var(--state-color);
   text-shadow: 0 0 24px var(--state-glow);
   transition: color 0.6s ease, text-shadow 0.6s ease;
   position: relative;
 }
-.brand-mark::after {
+.brand::after {
   content: '';
   position: absolute;
-  top: 50%;
-  right: -14px;
-  width: 6px;
-  height: 6px;
+  top: 50%; right: -16px;
+  width: 6px; height: 6px;
   background: var(--state-color);
   border-radius: 50%;
   box-shadow: 0 0 8px var(--state-color);
   transform: translateY(-50%);
-  animation: heartbeat 1.4s ease-in-out infinite;
+  animation: heartbeat 1.5s ease-in-out infinite;
 }
 @keyframes heartbeat {
-  0%, 100% { opacity: 0.4; transform: translateY(-50%) scale(0.85); }
-  50%      { opacity: 1;   transform: translateY(-50%) scale(1.1);  }
-}
-
-.brand-meta {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
-  color: var(--text-muted);
-  letter-spacing: 0.2em;
+  0%,100% { opacity: 0.4; transform: translateY(-50%) scale(0.85); }
+  50%     { opacity: 1;   transform: translateY(-50%) scale(1.1); }
 }
 
 .top-data {
   display: flex;
-  gap: 28px;
+  gap: 32px;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
-  color: var(--text-secondary);
-  letter-spacing: 0.1em;
 }
-.top-data > div { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
-.top-data .label { color: var(--text-muted); font-size: 9px; letter-spacing: 0.25em; }
-.top-data .value { color: var(--text-secondary); }
+.top-data > div { display: flex; flex-direction: column; gap: 5px; align-items: flex-end; }
+.top-data .label { color: var(--text-muted); font-size: 9px; letter-spacing: 0.28em; }
+.top-data .value { color: var(--text-secondary); font-size: 12px; letter-spacing: 0.1em; }
 
-/* ── 사이드 패널 ─────────────────────────────── */
-.panel {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 2px;
-  padding: 20px;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  position: relative;
-  transition: border-color 0.6s ease, opacity 0.6s ease;
-}
-.panel::before {
-  content: '';
-  position: absolute;
-  top: -1px; left: 20px;
-  width: 40px; height: 1px;
-  background: var(--state-color);
-  box-shadow: 0 0 8px var(--state-glow);
-  transition: background 0.6s ease;
-}
-
-.panel-title {
-  font-family: 'Orbitron', sans-serif;
-  font-size: 10px;
-  letter-spacing: 0.3em;
-  color: var(--text-muted);
-  margin-bottom: 16px;
+/* ── 중앙 비주얼라이저 ── */
+.center {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.panel-title .indicator {
-  width: 5px; height: 5px;
-  background: var(--state-color);
-  border-radius: 50%;
-  box-shadow: 0 0 6px var(--state-color);
-}
-
-.panel-item {
-  padding: 10px 0;
-  border-bottom: 1px solid rgba(0, 217, 255, 0.06);
-  font-size: 12px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.panel-item:last-child { border-bottom: none; }
-.panel-item .k { color: var(--text-muted); font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.1em; }
-.panel-item .v { color: var(--text-secondary); font-family: 'JetBrains Mono', monospace; font-size: 11px; }
-.panel-item .v.hl { color: var(--state-color); }
-
-/* ── Reasoning pipeline ─────────────────────── */
-.pipe-step {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 12px 0;
-  position: relative;
-}
-.pipe-step:not(:last-child)::after {
-  content: '';
-  position: absolute;
-  left: 5px;
-  top: 22px;
-  bottom: -6px;
-  width: 1px;
-  background: rgba(0, 217, 255, 0.15);
-}
-.pipe-dot {
-  width: 11px; height: 11px;
-  border: 1px solid var(--text-muted);
-  border-radius: 50%;
-  flex-shrink: 0;
-  margin-top: 3px;
-  background: var(--bg-deep);
-  position: relative;
-  z-index: 1;
-}
-.pipe-step.done .pipe-dot { background: var(--aqua); border-color: var(--aqua); box-shadow: 0 0 6px var(--aqua-glow); }
-.pipe-step.active .pipe-dot {
-  background: var(--amber);
-  border-color: var(--amber);
-  box-shadow: 0 0 12px var(--amber-glow);
-  animation: dotPulse 1.2s ease-in-out infinite;
-}
-@keyframes dotPulse {
-  0%, 100% { transform: scale(1);   opacity: 1; }
-  50%      { transform: scale(1.3); opacity: 0.7; }
-}
-.pipe-label {
-  font-size: 11px;
-  color: var(--text-secondary);
-  letter-spacing: 0.05em;
-  font-weight: 400;
-}
-.pipe-meta {
-  font-size: 9px;
-  color: var(--text-muted);
-  font-family: 'JetBrains Mono', monospace;
-  margin-top: 3px;
-  letter-spacing: 0.08em;
-}
-.pipe-step.active .pipe-label { color: var(--amber); font-weight: 500; }
-.pipe-step.pending .pipe-label { color: var(--text-disabled); }
-.pipe-step.pending .pipe-meta  { color: var(--text-disabled); }
-
-/* ── 비주얼라이저 영역 ─────────────────────── */
-.viz-wrap {
-  display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  position: relative;
-  min-height: 540px;
 }
-
 .viz {
   position: relative;
-  width: 560px;
-  height: 560px;
+  width: 600px;
+  height: 600px;
 }
+.viz-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 
-.viz-svg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-}
-
-/* 외곽 회전 마커 (가장 큰 링) */
-.ring-outer {
-  fill: none;
-  stroke: var(--state-color);
-  stroke-width: 0.6;
-  opacity: 0.4;
-  filter: drop-shadow(0 0 4px var(--state-glow));
-  transition: stroke 0.6s ease;
-}
-
-/* 동심원 링들 */
 .ring {
   fill: none;
   stroke: var(--state-color);
-  stroke-width: 0.8;
-  opacity: 0.35;
+  stroke-width: 0.7;
   filter: drop-shadow(0 0 3px var(--state-glow));
-  transition: stroke 0.6s ease, opacity 0.6s ease;
+  transition: stroke 0.6s ease;
 }
-.ring.r1 { opacity: 0.25; }
-.ring.r2 { opacity: 0.4; }
-.ring.r3 { opacity: 0.55; }
+.ring.r1 { opacity: 0.18; }
+.ring.r2 { opacity: 0.3; }
+.ring.r3 { opacity: 0.45; }
 
-/* Thinking 시 점선 + 회전 */
-[data-state="thinking"] .ring.r1 { stroke-dasharray: 4 6; animation: rotate-cw 14s linear infinite; transform-origin: center; transform-box: fill-box; }
-[data-state="thinking"] .ring.r2 { stroke-dasharray: 3 4; animation: rotate-ccw 10s linear infinite; transform-origin: center; transform-box: fill-box; }
-[data-state="thinking"] .ring.r3 { stroke-dasharray: 2 5; animation: rotate-cw 7s linear infinite; transform-origin: center; transform-box: fill-box; }
+[data-state="thinking"] .ring.r1 { stroke-dasharray: 4 6; animation: rcw 14s linear infinite; transform-origin: center; transform-box: fill-box; }
+[data-state="thinking"] .ring.r2 { stroke-dasharray: 3 4; animation: rccw 10s linear infinite; transform-origin: center; transform-box: fill-box; }
+[data-state="thinking"] .ring.r3 { stroke-dasharray: 2 5; animation: rcw 7s linear infinite; transform-origin: center; transform-box: fill-box; }
+@keyframes rcw  { to { transform: rotate(360deg); } }
+@keyframes rccw { to { transform: rotate(-360deg); } }
 
-@keyframes rotate-cw  { from { transform: rotate(0deg);   } to { transform: rotate(360deg);  } }
-@keyframes rotate-ccw { from { transform: rotate(0deg);   } to { transform: rotate(-360deg); } }
-
-/* 외곽 마커 점 (각도 표시) */
-.angle-marker {
-  fill: var(--state-color);
-  opacity: 0.6;
-  filter: drop-shadow(0 0 2px var(--state-glow));
-}
-
-/* 360 파형 라인 */
 .wave-line {
   stroke: var(--state-color);
   stroke-width: 1.6;
@@ -406,501 +182,244 @@ body::before {
   filter: drop-shadow(0 0 4px var(--state-glow));
   transition: stroke 0.6s ease;
 }
-
-/* 중앙 코어 */
 .core {
   fill: var(--state-color);
-  filter:
-    drop-shadow(0 0 12px var(--state-color))
-    drop-shadow(0 0 30px var(--state-glow))
-    drop-shadow(0 0 60px var(--state-glow));
+  filter: drop-shadow(0 0 12px var(--state-color)) drop-shadow(0 0 30px var(--state-glow)) drop-shadow(0 0 60px var(--state-glow));
   transition: fill 0.6s ease;
   animation: corePulse 2s ease-in-out infinite;
 }
 @keyframes corePulse {
-  0%, 100% { transform: scale(1);    opacity: 1; }
-  50%      { transform: scale(1.08); opacity: 0.92; }
+  0%,100% { transform: scale(1); opacity: 1; }
+  50%     { transform: scale(1.08); opacity: 0.92; }
 }
+.core-ring { fill: none; stroke: rgba(255,255,255,0.6); stroke-width: 0.5; }
+.angle-marker { fill: var(--state-color); opacity: 0.5; filter: drop-shadow(0 0 2px var(--state-glow)); }
+.particle { fill: var(--state-color); opacity: 0; filter: drop-shadow(0 0 2px var(--state-color)); }
 
-.core-ring {
-  fill: none;
-  stroke: rgba(255, 255, 255, 0.6);
-  stroke-width: 0.5;
-}
-
-/* 입자 (Thinking 시 흩날림) */
-.particle {
-  fill: var(--state-color);
-  opacity: 0;
-  filter: drop-shadow(0 0 2px var(--state-color));
-}
-
-/* 상태 라벨 (중앙 아래) */
 .viz-label {
   position: absolute;
-  bottom: 30px;
-  left: 50%;
+  bottom: 40px; left: 50%;
   transform: translateX(-50%);
   text-align: center;
+  width: 100%;
 }
 .viz-label-state {
   font-family: 'Orbitron', sans-serif;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 500;
-  letter-spacing: 0.4em;
+  letter-spacing: 0.42em;
   color: var(--state-color);
-  text-shadow: 0 0 16px var(--state-glow);
+  text-shadow: 0 0 18px var(--state-glow);
   transition: color 0.6s ease, text-shadow 0.6s ease;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 .viz-label-desc {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-secondary);
-  letter-spacing: 0.15em;
+  letter-spacing: 0.18em;
   font-weight: 300;
 }
 
-/* 음성 파형 모니터 (라인) */
-.wave-monitor {
-  margin-top: 16px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-.wave-bar {
-  flex: 1;
-  background: var(--state-color);
-  border-radius: 1px;
-  filter: drop-shadow(0 0 2px var(--state-glow));
-  transition: height 0.05s linear, background 0.6s ease;
-  min-height: 2px;
-}
-
-/* ── 하단 응답 영역 ─────────────────────── */
+/* ── 응답 텍스트 (하단 중앙) ── */
 .response {
-  grid-column: 1 / -1;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 2px;
-  padding: 24px 32px;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  position: relative;
-  transition: border-color 0.6s ease, opacity 0.6s ease;
+  position: fixed;
+  bottom: 90px; left: 50%;
+  transform: translateX(-50%);
+  z-index: 15;
+  width: min(820px, 80vw);
+  text-align: center;
+  min-height: 30px;
 }
-.response::before {
-  content: '';
-  position: absolute;
-  top: -1px; left: 32px;
-  width: 60px; height: 1px;
-  background: var(--state-color);
-  box-shadow: 0 0 8px var(--state-glow);
-  transition: background 0.6s ease;
-}
-
-.response-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
-  letter-spacing: 0.25em;
-  color: var(--text-muted);
-}
-.response-header .who { color: var(--state-color); }
-
 .response-text {
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 400;
   line-height: 1.7;
-  letter-spacing: -0.005em;
   color: var(--text-primary);
-  min-height: 50px;
+  text-shadow: 0 0 20px rgba(0,0,0,0.8);
 }
 .response-text .cursor {
   display: inline-block;
-  width: 8px;
-  height: 18px;
+  width: 8px; height: 18px;
   background: var(--state-color);
-  margin-left: 2px;
+  margin-left: 3px;
   vertical-align: text-bottom;
   animation: blink 0.7s steps(1) infinite;
   box-shadow: 0 0 6px var(--state-color);
 }
-@keyframes blink {
-  50% { opacity: 0; }
+@keyframes blink { 50% { opacity: 0; } }
+
+/* ── 하단 힌트 ── */
+.hint {
+  position: fixed;
+  bottom: 44px; left: 50%;
+  transform: translateX(-50%);
+  z-index: 15;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  color: var(--text-muted);
+}
+.hint .key {
+  color: var(--state-color);
+  border: 1px solid var(--state-color);
+  border-radius: 3px;
+  padding: 2px 8px;
+  margin: 0 2px;
 }
 
-/* ── 상태 컨트롤 ────────────────────────── */
+/* ── 버전 (왼쪽 아래) ── */
+.version {
+  position: fixed;
+  bottom: 44px; left: 60px;
+  z-index: 15;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  color: var(--text-muted);
+}
+
+/* ── 상태 컨트롤 (디버그용, 작게 우하단) ── */
 .controls {
   position: fixed;
-  bottom: 30px;
-  left: 50%;
-  transform: translateX(-50%);
+  bottom: 40px; right: 60px;
+  z-index: 15;
   display: flex;
-  gap: 4px;
-  padding: 6px;
-  background: rgba(3, 6, 16, 0.85);
-  border: 1px solid var(--border);
-  border-radius: 2px;
-  backdrop-filter: blur(20px);
-  z-index: 60;
+  gap: 2px;
 }
-
 .ctrl-btn {
-  padding: 12px 24px;
+  padding: 6px 10px;
   border: 1px solid transparent;
   background: transparent;
   color: var(--text-muted);
   font-family: 'Orbitron', sans-serif;
-  font-size: 10px;
+  font-size: 8px;
   font-weight: 500;
-  letter-spacing: 0.32em;
+  letter-spacing: 0.2em;
   cursor: pointer;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-}
-.ctrl-btn::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 50%;
-  width: 80%;
-  height: 1px;
-  background: currentColor;
-  transform: translateX(-50%) scaleX(0);
-  transition: transform 0.4s ease;
+  transition: all 0.3s ease;
 }
 .ctrl-btn:hover { color: var(--text-secondary); }
-.ctrl-btn:hover::before { transform: translateX(-50%) scaleX(0.5); }
-.ctrl-btn.active {
-  color: var(--state-color);
-  background: rgba(0, 217, 255, 0.05);
-}
-.ctrl-btn.active::before {
-  transform: translateX(-50%) scaleX(1);
-  background: var(--state-color);
-  box-shadow: 0 0 10px var(--state-color);
-}
+.ctrl-btn.active { color: var(--state-color); }
 
-/* 패널 dim 상태 (idle/listening 시 일부 패널 흐림) */
-[data-state="idle"] .pipeline-section { opacity: 0.3; }
-[data-state="idle"] .tool-section { opacity: 0.3; }
-[data-state="listening"] .pipeline-section { opacity: 0.4; }
-[data-state="listening"] .tool-section { opacity: 0.4; }
-
-/* 페이지 진입 애니메이션 */
-.hud > * { animation: enterStagger 0.9s cubic-bezier(0.16, 1, 0.3, 1) backwards; }
-.hud > *:nth-child(1) { animation-delay: 0.05s; }
-.hud > *:nth-child(2) { animation-delay: 0.15s; }
-.hud > *:nth-child(3) { animation-delay: 0.25s; }
-.hud > *:nth-child(4) { animation-delay: 0.35s; }
-.hud > *:nth-child(5) { animation-delay: 0.45s; }
-@keyframes enterStagger {
-  from { opacity: 0; transform: translateY(20px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-/* 반응형 — 좁은 화면에서도 동작 */
-@media (max-width: 1100px) {
-  .hud { grid-template-columns: 1fr; padding: 30px 20px 120px; }
-  .panel { max-width: 480px; margin: 0 auto; width: 100%; }
+@media (max-width: 1000px) {
   .viz { width: 90vw; height: 90vw; max-width: 500px; max-height: 500px; }
+  .top { left: 30px; right: 30px; top: 30px; }
 }
 </style>
 </head>
-<body>
+<body data-state="idle">
 
-<div class="bg-grid"></div>
-<div class="bg-noise"></div>
-<div class="bg-scan"></div>
+<canvas id="space"></canvas>
+<div class="nebula"></div>
+<div class="vignette"></div>
 
 <div class="frame tl"></div>
 <div class="frame tr"></div>
 <div class="frame bl"></div>
 <div class="frame br"></div>
 
-<main class="hud" data-state="listening">
+<div class="top">
+  <div class="brand">E.D.D.I.E</div>
+  <div class="top-data">
+    <div><div class="label">USER</div><div class="value">정혁님</div></div>
+    <div><div class="label">UPTIME</div><div class="value" id="uptime">00:00:00</div></div>
+    <div><div class="label">CLOCK</div><div class="value" id="clock">--:--:--</div></div>
+  </div>
+</div>
 
-  <!-- 상단 바 -->
-  <header class="top">
-    <div class="brand">
-      <div class="brand-mark">E.D.D.I.E</div>
-      <div class="brand-meta">v0.1-PROTO · DSN-001</div>
+<div class="center">
+  <div class="viz">
+    <svg class="viz-svg" viewBox="-300 -300 600 600" preserveAspectRatio="xMidYMid meet">
+      <g class="outer-frame" id="outer-frame"></g>
+      <circle class="ring r1" cx="0" cy="0" r="250"/>
+      <circle class="ring r2" cx="0" cy="0" r="185"/>
+      <circle class="ring r3" cx="0" cy="0" r="125"/>
+      <g id="waveform"></g>
+      <g id="particles"></g>
+      <circle class="core" cx="0" cy="0" r="22"/>
+      <circle class="core-ring" cx="0" cy="0" r="22"/>
+      <circle class="core-ring" cx="0" cy="0" r="32" stroke-opacity="0.3"/>
+    </svg>
+    <div class="viz-label">
+      <div class="viz-label-state" id="state-label">대기</div>
+      <div class="viz-label-desc" id="state-desc">음성 명령 대기 중</div>
     </div>
-    <div class="top-data">
-      <div>
-        <div class="label">USER</div>
-        <div class="value">정혁님</div>
-      </div>
-      <div>
-        <div class="label">SESSION</div>
-        <div class="value" id="session-id">EDD-2026-05-17-A4</div>
-      </div>
-      <div>
-        <div class="label">UPTIME</div>
-        <div class="value" id="uptime">00:00:00</div>
-      </div>
-      <div>
-        <div class="label">CLOCK</div>
-        <div class="value" id="clock">--:--:--</div>
-      </div>
-    </div>
-  </header>
+  </div>
+</div>
 
-  <!-- 좌측 패널 -->
-  <aside class="panel">
-    <div class="panel-title pipeline-section">
-      <span>REASONING PIPELINE</span>
-      <span class="indicator"></span>
-    </div>
+<div class="response">
+  <div class="response-text" id="response-text"></div>
+</div>
 
-    <div class="pipeline-section">
-      <div class="pipe-step done" id="step-1">
-        <div class="pipe-dot"></div>
-        <div>
-          <div class="pipe-label">Intent received</div>
-          <div class="pipe-meta">자율주행 동향 검색</div>
-        </div>
-      </div>
-      <div class="pipe-step done" id="step-2">
-        <div class="pipe-dot"></div>
-        <div>
-          <div class="pipe-label">Tool selected</div>
-          <div class="pipe-meta">MOD-TOL-001 · web_search</div>
-        </div>
-      </div>
-      <div class="pipe-step active" id="step-3">
-        <div class="pipe-dot"></div>
-        <div>
-          <div class="pipe-label">Calling Tavily API</div>
-          <div class="pipe-meta">elapsed 1.4s</div>
-        </div>
-      </div>
-      <div class="pipe-step pending" id="step-4">
-        <div class="pipe-dot"></div>
-        <div>
-          <div class="pipe-label">Synthesize results</div>
-          <div class="pipe-meta">pending</div>
-        </div>
-      </div>
-      <div class="pipe-step pending" id="step-5">
-        <div class="pipe-dot"></div>
-        <div>
-          <div class="pipe-label">Generate response</div>
-          <div class="pipe-meta">pending</div>
-        </div>
-      </div>
-      <div class="pipe-step pending" id="step-6">
-        <div class="pipe-dot"></div>
-        <div>
-          <div class="pipe-label">TTS playback</div>
-          <div class="pipe-meta">pending</div>
-        </div>
-      </div>
-    </div>
+<div class="hint">
+  <span class="key">SPACE</span> 녹음 시작 / 종료
+</div>
 
-    <div class="panel-title" style="margin-top:28px">SYSTEM</div>
-    <div class="panel-item">
-      <span class="k">mode</span>
-      <span class="v hl" id="mode-display">LISTENING</span>
-    </div>
-    <div class="panel-item">
-      <span class="k">api credits</span>
-      <span class="v">997 / 1000</span>
-    </div>
-    <div class="panel-item">
-      <span class="k">latency</span>
-      <span class="v" id="latency-display">1.4s</span>
-    </div>
-  </aside>
+<div class="version">EDDIE v0.2 · DSN-001</div>
 
-  <!-- 중앙 비주얼라이저 -->
-  <section class="viz-wrap">
-    <div class="viz">
-      <svg class="viz-svg" viewBox="-280 -280 560 560" preserveAspectRatio="xMidYMid meet">
-        <!-- 외곽 회전 마커 그룹 -->
-        <g class="outer-frame" id="outer-frame">
-          <!-- 동적으로 생성 -->
-        </g>
-
-        <!-- 동심원 링들 -->
-        <circle class="ring r1" cx="0" cy="0" r="240"/>
-        <circle class="ring r2" cx="0" cy="0" r="180"/>
-        <circle class="ring r3" cx="0" cy="0" r="120"/>
-
-        <!-- 360 파형 -->
-        <g id="waveform"></g>
-
-        <!-- 입자 (Thinking) -->
-        <g id="particles"></g>
-
-        <!-- 중앙 코어 -->
-        <circle class="core" cx="0" cy="0" r="22"/>
-        <circle class="core-ring" cx="0" cy="0" r="22"/>
-        <circle class="core-ring" cx="0" cy="0" r="32" stroke-opacity="0.3"/>
-      </svg>
-
-      <div class="viz-label">
-        <div class="viz-label-state" id="state-label">LISTENING</div>
-        <div class="viz-label-desc" id="state-desc">음성 입력 수신 중</div>
-      </div>
-    </div>
-  </section>
-
-  <!-- 우측 패널 -->
-  <aside class="panel">
-    <div class="panel-title tool-section">
-      <span>ACTIVE TOOL</span>
-      <span class="indicator"></span>
-    </div>
-    <div class="tool-section">
-      <div class="panel-item">
-        <span class="k">tool</span>
-        <span class="v hl">web_search</span>
-      </div>
-      <div class="panel-item">
-        <span class="k">module</span>
-        <span class="v">MOD-TOL-001</span>
-      </div>
-      <div class="panel-item">
-        <span class="k">query</span>
-        <span class="v" style="max-width:140px;text-align:right">자율주행 최신</span>
-      </div>
-      <div class="panel-item">
-        <span class="k">max_results</span>
-        <span class="v">5</span>
-      </div>
-      <div class="panel-item">
-        <span class="k">status</span>
-        <span class="v hl" id="tool-status">in_progress</span>
-      </div>
-    </div>
-
-    <div class="panel-title" style="margin-top:28px">PERSONA</div>
-    <div class="panel-item">
-      <span class="k">profile</span>
-      <span class="v">PRS-001 v0.2</span>
-    </div>
-    <div class="panel-item">
-      <span class="k">address</span>
-      <span class="v hl">정혁님</span>
-    </div>
-    <div class="panel-item">
-      <span class="k">style</span>
-      <span class="v">차분 + 위트</span>
-    </div>
-    <div class="panel-item">
-      <span class="k">voice</span>
-      <span class="v">InJoonNeural</span>
-    </div>
-
-    <!-- 실시간 음성 모니터 -->
-    <div class="panel-title" style="margin-top:28px">SIGNAL MONITOR</div>
-    <div class="wave-monitor" id="wave-monitor">
-      <!-- bars 동적 생성 -->
-    </div>
-  </aside>
-
-  <!-- 하단 응답 -->
-  <section class="response">
-    <div class="response-header">
-      <span class="who" id="response-who">EDDIE · OUTPUT</span>
-      <span id="response-meta">awaiting input</span>
-    </div>
-    <div class="response-text" id="response-text">
-      정혁님, 무엇을 도와드릴까요?<span class="cursor"></span>
-    </div>
-  </section>
-
-</main>
-
-<!-- 상태 컨트롤 -->
-<nav class="controls">
-  <button class="ctrl-btn" data-state="idle">IDLE</button>
-  <button class="ctrl-btn active" data-state="listening">LISTENING</button>
-  <button class="ctrl-btn" data-state="thinking">THINKING</button>
-  <button class="ctrl-btn" data-state="speaking">SPEAKING</button>
-</nav>
+<div class="controls">
+  <button class="ctrl-btn active" data-state="idle">IDLE</button>
+  <button class="ctrl-btn" data-state="listening">LISTEN</button>
+  <button class="ctrl-btn" data-state="thinking">THINK</button>
+  <button class="ctrl-btn" data-state="speaking">SPEAK</button>
+</div>
 
 <script>
-// ── 상태별 메타데이터 ──────────────────────────────
+// ── 상태 메타 ──
 const STATES = {
-  idle: {
-    label: '대기 · STANDBY',
-    desc: '음성 명령 대기 중',
-    response: '정혁님, 무엇을 도와드릴까요?',
-    who: 'EDDIE · STANDBY',
-    meta: 'awaiting input',
-    toolStatus: 'idle',
-    mode: 'IDLE',
-    latency: '-',
-    stepActive: -1,
-  },
-  listening: {
-    label: 'LISTENING',
-    desc: '음성 입력 수신 중',
-    response: '음성 입력을 받고 있습니다...',
-    who: 'EDDIE · INPUT',
-    meta: 'mic active · VAD on',
-    toolStatus: 'standby',
-    mode: 'LISTENING',
-    latency: '0.0s',
-    stepActive: 0,
-  },
-  thinking: {
-    label: 'THINKING',
-    desc: '의도 분석 · 도구 호출 중',
-    response: '검색하고 있습니다. 잠시만 기다려 주십시오.',
-    who: 'EDDIE · PROCESSING',
-    meta: 'tool_use in progress',
-    toolStatus: 'in_progress',
-    mode: 'THINKING',
-    latency: '1.4s',
-    stepActive: 2,
-  },
-  speaking: {
-    label: 'SPEAKING',
-    desc: 'TTS 출력 · 응답 합성 완료',
-    response: '자율주행 분야의 최신 동향을 정리해 드리겠습니다. 2026년 5월 기준, 가장 주목할 만한 변화는 세 가지입니다. 첫째, Tesla의 FSD v13 출시로 인한 시장 재편이 가속화되고 있습니다.',
-    who: 'EDDIE · OUTPUT',
-    meta: 'TTS playback 67%',
-    toolStatus: 'completed',
-    mode: 'SPEAKING',
-    latency: '2.1s',
-    stepActive: 5,
-  },
+  idle:      { label: '대기',       desc: '음성 명령 대기 중' },
+  listening: { label: 'LISTENING',  desc: '음성 입력 수신 중' },
+  thinking:  { label: 'THINKING',   desc: '분석 중' },
+  speaking:  { label: 'SPEAKING',   desc: '응답 중' },
 };
 
-// ── 외곽 마커 (각도 표시기) 생성 ─────────────────
+let currentState = 'idle';
+
+// ── 우주 배경 (별 필드, parallax) ──
+const canvas = document.getElementById('space');
+const ctx = canvas.getContext('2d');
+let stars = [];
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  initStars();
+}
+function initStars() {
+  stars = [];
+  const count = Math.floor((canvas.width * canvas.height) / 6000);
+  for (let i = 0; i < count; i++) {
+    stars.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      z: Math.random(),  // 깊이 (parallax)
+      r: Math.random() * 1.2 + 0.2,
+      tw: Math.random() * Math.PI * 2,  // twinkle phase
+    });
+  }
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+// ── SVG 각도 마커 ──
 const outerFrame = document.getElementById('outer-frame');
-const NUM_ANGLE_MARKERS = 24;
-for (let i = 0; i < NUM_ANGLE_MARKERS; i++) {
-  const angle = (i / NUM_ANGLE_MARKERS) * Math.PI * 2 - Math.PI / 2;
-  const r1 = 260;
-  const r2 = i % 6 === 0 ? 252 : 256;
-  const x1 = Math.cos(angle) * r1;
-  const y1 = Math.sin(angle) * r1;
-  const x2 = Math.cos(angle) * r2;
-  const y2 = Math.sin(angle) * r2;
+const NUM_MARKERS = 24;
+for (let i = 0; i < NUM_MARKERS; i++) {
+  const a = (i / NUM_MARKERS) * Math.PI * 2 - Math.PI / 2;
+  const r1 = 272, r2 = i % 6 === 0 ? 264 : 268;
   const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-  line.setAttribute('x1', x1);
-  line.setAttribute('y1', y1);
-  line.setAttribute('x2', x2);
-  line.setAttribute('y2', y2);
+  line.setAttribute('x1', Math.cos(a)*r1); line.setAttribute('y1', Math.sin(a)*r1);
+  line.setAttribute('x2', Math.cos(a)*r2); line.setAttribute('y2', Math.sin(a)*r2);
   line.setAttribute('class', 'angle-marker');
   line.setAttribute('stroke', 'currentColor');
   line.setAttribute('stroke-width', i % 6 === 0 ? '1.5' : '0.8');
   line.style.color = 'var(--state-color)';
   outerFrame.appendChild(line);
 }
-// 외곽 회전 (느린 회전 효과 - CSS로)
 outerFrame.style.transformOrigin = 'center';
-outerFrame.style.animation = 'rotate-cw 60s linear infinite';
+outerFrame.style.animation = 'rcw 60s linear infinite';
 
-// ── 360 파형 라인 생성 ─────────────────────────
+// ── 360 파형 ──
 const waveform = document.getElementById('waveform');
 const NUM_LINES = 80;
 const wfLines = [];
@@ -912,174 +431,84 @@ for (let i = 0; i < NUM_LINES; i++) {
   wfLines.push({ el: line, angle, phase: Math.random() * Math.PI * 2 });
 }
 
-// ── 입자 (Thinking 시 흩어지는) ──────────────
+// ── 입자 ──
 const particlesG = document.getElementById('particles');
-const NUM_PARTICLES = 24;
 const particles = [];
-for (let i = 0; i < NUM_PARTICLES; i++) {
+for (let i = 0; i < 24; i++) {
   const p = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
   p.setAttribute('class', 'particle');
   p.setAttribute('r', 1.5 + Math.random() * 1.5);
   particlesG.appendChild(p);
-  particles.push({
-    el: p,
-    angle: (i / NUM_PARTICLES) * Math.PI * 2,
-    radius: 90,
-    targetRadius: 90,
-    speed: 0.3 + Math.random() * 0.7,
-    offset: Math.random() * Math.PI * 2,
-  });
+  particles.push({ el: p, angle: (i/24)*Math.PI*2, radius: 95, targetRadius: 95, speed: 0.3+Math.random()*0.7, offset: Math.random()*Math.PI*2 });
 }
 
-// ── 시그널 모니터 바 ────────────────────────
-const monitor = document.getElementById('wave-monitor');
-const NUM_BARS = 28;
-const bars = [];
-for (let i = 0; i < NUM_BARS; i++) {
-  const bar = document.createElement('div');
-  bar.className = 'wave-bar';
-  monitor.appendChild(bar);
-  bars.push(bar);
-}
-
-// ── 시계 & 가동 시간 ────────────────────────
+// ── 시계 ──
 const clockEl = document.getElementById('clock');
 const uptimeEl = document.getElementById('uptime');
 const startTime = Date.now();
 function tickClock() {
   const now = new Date();
-  const hh = String(now.getHours()).padStart(2, '0');
-  const mm = String(now.getMinutes()).padStart(2, '0');
-  const ss = String(now.getSeconds()).padStart(2, '0');
-  clockEl.textContent = `${hh}:${mm}:${ss}`;
-
-  const elapsed = Math.floor((Date.now() - startTime) / 1000);
-  const eh = String(Math.floor(elapsed / 3600)).padStart(2, '0');
-  const em = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
-  const es = String(elapsed % 60).padStart(2, '0');
-  uptimeEl.textContent = `${eh}:${em}:${es}`;
+  clockEl.textContent = [now.getHours(), now.getMinutes(), now.getSeconds()].map(n => String(n).padStart(2,'0')).join(':');
+  const el = Math.floor((Date.now()-startTime)/1000);
+  uptimeEl.textContent = [Math.floor(el/3600), Math.floor((el%3600)/60), el%60].map(n => String(n).padStart(2,'0')).join(':');
 }
-tickClock();
-setInterval(tickClock, 1000);
+tickClock(); setInterval(tickClock, 1000);
 
-// ── 메인 애니메이션 루프 ───────────────────
+// ── 메인 루프 ──
 let frame = 0;
-let currentState = 'listening';
-
 function animate() {
   frame++;
   const t = frame * 0.016;
 
-  // 파형 진폭 계산 (상태별)
-  let baseAmp, jitter, freq, phaseShift;
-  if (currentState === 'idle') {
-    baseAmp = 8;  jitter = 2;  freq = 0.6;  phaseShift = 0.04;
-  } else if (currentState === 'listening') {
-    baseAmp = 24; jitter = 12; freq = 1.8;  phaseShift = 0.1;
-  } else if (currentState === 'thinking') {
-    baseAmp = 14; jitter = 5;  freq = 0.9;  phaseShift = 0.06;
-  } else if (currentState === 'speaking') {
-    baseAmp = 36; jitter = 20; freq = 2.4;  phaseShift = 0.14;
+  // 우주 배경
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  for (const s of stars) {
+    const drift = (1 - s.z) * 0.15;  // 가까운 별이 더 빨리
+    s.y += drift;
+    if (s.y > canvas.height) { s.y = 0; s.x = Math.random() * canvas.width; }
+    const tw = 0.5 + 0.5 * Math.sin(t * 1.5 + s.tw);
+    const alpha = (0.2 + s.z * 0.6) * tw;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r * (0.6 + s.z * 0.6), 0, Math.PI*2);
+    ctx.fillStyle = `rgba(${180+s.z*40}, ${220+s.z*20}, 255, ${alpha})`;
+    ctx.fill();
   }
 
+  // 파형 진폭
+  let baseAmp, jitter, freq, ph;
+  if (currentState === 'idle')      { baseAmp=8;  jitter=2;  freq=0.6; ph=0.04; }
+  else if (currentState === 'listening') { baseAmp=24; jitter=12; freq=1.8; ph=0.1; }
+  else if (currentState === 'thinking')  { baseAmp=14; jitter=5;  freq=0.9; ph=0.06; }
+  else                              { baseAmp=36; jitter=20; freq=2.4; ph=0.14; }
+
   wfLines.forEach((line, i) => {
-    const sin1 = Math.sin(t * freq + i * phaseShift + line.phase);
-    const sin2 = Math.sin(t * freq * 1.7 + i * phaseShift * 1.3 + line.phase);
-    const noise = (Math.random() - 0.5) * jitter;
-    let amp = baseAmp + sin1 * (jitter * 0.6) + sin2 * (jitter * 0.3) + noise;
-    amp = Math.max(2, amp);
-
-    const inner = 78;
-    const outer = inner + amp;
-    const x1 = Math.cos(line.angle) * inner;
-    const y1 = Math.sin(line.angle) * inner;
-    const x2 = Math.cos(line.angle) * outer;
-    const y2 = Math.sin(line.angle) * outer;
-
-    line.el.setAttribute('x1', x1.toFixed(1));
-    line.el.setAttribute('y1', y1.toFixed(1));
-    line.el.setAttribute('x2', x2.toFixed(1));
-    line.el.setAttribute('y2', y2.toFixed(1));
+    const s1 = Math.sin(t*freq + i*ph + line.phase);
+    const s2 = Math.sin(t*freq*1.7 + i*ph*1.3 + line.phase);
+    const noise = (Math.random()-0.5)*jitter;
+    let amp = Math.max(2, baseAmp + s1*(jitter*0.6) + s2*(jitter*0.3) + noise);
+    const inner = 80, outer = inner + amp;
+    line.el.setAttribute('x1', (Math.cos(line.angle)*inner).toFixed(1));
+    line.el.setAttribute('y1', (Math.sin(line.angle)*inner).toFixed(1));
+    line.el.setAttribute('x2', (Math.cos(line.angle)*outer).toFixed(1));
+    line.el.setAttribute('y2', (Math.sin(line.angle)*outer).toFixed(1));
   });
 
-  // 입자 (Thinking 시 활성)
-  const particleActive = currentState === 'thinking';
-  particles.forEach((p, i) => {
-    p.angle += p.speed * 0.008;
-    if (particleActive) {
-      p.targetRadius = 145 + Math.sin(t * 0.7 + p.offset) * 35;
-      p.el.style.opacity = 0.5 + Math.sin(t * 1.2 + p.offset) * 0.5;
-    } else {
-      p.targetRadius = 90;
-      p.el.style.opacity = 0;
-    }
-    p.radius += (p.targetRadius - p.radius) * 0.08;
-    const x = Math.cos(p.angle) * p.radius;
-    const y = Math.sin(p.angle) * p.radius;
-    p.el.setAttribute('cx', x.toFixed(1));
-    p.el.setAttribute('cy', y.toFixed(1));
-  });
-
-  // 시그널 모니터 바 (좌측 패널)
-  bars.forEach((bar, i) => {
-    let h;
-    if (currentState === 'idle') {
-      h = 3 + Math.sin(t * 0.8 + i * 0.4) * 2;
-    } else if (currentState === 'listening') {
-      h = 6 + Math.abs(Math.sin(t * 2 + i * 0.5)) * 16 + Math.random() * 6;
-    } else if (currentState === 'thinking') {
-      h = 4 + Math.sin(t * 1.4 + i * 0.3) * 6;
-    } else if (currentState === 'speaking') {
-      h = 8 + Math.abs(Math.sin(t * 2.4 + i * 0.4)) * 22 + Math.random() * 4;
-    }
-    bar.style.height = `${Math.max(2, h)}px`;
+  // 입자 (thinking)
+  const pa = currentState === 'thinking';
+  particles.forEach((p) => {
+    p.angle += p.speed*0.008;
+    if (pa) { p.targetRadius = 150 + Math.sin(t*0.7+p.offset)*35; p.el.style.opacity = 0.5+Math.sin(t*1.2+p.offset)*0.5; }
+    else { p.targetRadius = 95; p.el.style.opacity = 0; }
+    p.radius += (p.targetRadius - p.radius)*0.08;
+    p.el.setAttribute('cx', (Math.cos(p.angle)*p.radius).toFixed(1));
+    p.el.setAttribute('cy', (Math.sin(p.angle)*p.radius).toFixed(1));
   });
 
   requestAnimationFrame(animate);
 }
 animate();
 
-// ── 상태 전환 로직 ───────────────────────
-function setState(name) {
-  if (!STATES[name]) return;
-  currentState = name;
-  document.querySelector('.hud').dataset.state = name;
-
-  // 버튼 활성화
-  document.querySelectorAll('.ctrl-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.state === name);
-  });
-
-  // 메타 정보 업데이트
-  const s = STATES[name];
-  document.getElementById('state-label').textContent = s.label;
-  document.getElementById('state-desc').textContent = s.desc;
-  document.getElementById('response-who').textContent = s.who;
-  document.getElementById('response-meta').textContent = s.meta;
-  document.getElementById('tool-status').textContent = s.toolStatus;
-  document.getElementById('mode-display').textContent = s.mode;
-  document.getElementById('latency-display').textContent = s.latency;
-
-  // 응답 텍스트 (타이핑 효과)
-  typeText(s.response);
-
-  // Pipeline 단계 업데이트
-  const steps = document.querySelectorAll('.pipe-step');
-  steps.forEach((step, i) => {
-    step.classList.remove('done', 'active', 'pending');
-    if (s.stepActive < 0) {
-      step.classList.add('pending');
-    } else if (i < s.stepActive) {
-      step.classList.add('done');
-    } else if (i === s.stepActive) {
-      step.classList.add('active');
-    } else {
-      step.classList.add('pending');
-    }
-  });
-}
-
-// 타이핑 효과
+// ── 상태 전환 ──
 let typingTimer = null;
 function typeText(text) {
   const el = document.getElementById('response-text');
@@ -1087,44 +516,45 @@ function typeText(text) {
   el.innerHTML = '<span class="cursor"></span>';
   let i = 0;
   typingTimer = setInterval(() => {
-    if (i >= text.length) {
-      clearInterval(typingTimer);
-      return;
-    }
-    el.innerHTML = text.slice(0, i + 1) + '<span class="cursor"></span>';
+    if (i >= text.length) { clearInterval(typingTimer); return; }
+    el.innerHTML = text.slice(0, i+1) + '<span class="cursor"></span>';
     i++;
   }, 35);
 }
 
-// 버튼 이벤트
+function setState(name) {
+  if (!STATES[name]) return;
+  currentState = name;
+  document.body.dataset.state = name;
+  document.querySelectorAll('.ctrl-btn').forEach(b => b.classList.toggle('active', b.dataset.state === name));
+  document.getElementById('state-label').textContent = STATES[name].label;
+  document.getElementById('state-desc').textContent = STATES[name].desc;
+  if (name === 'idle') document.getElementById('response-text').innerHTML = '';
+}
+
 document.querySelectorAll('.ctrl-btn').forEach(btn => {
   btn.addEventListener('click', () => setState(btn.dataset.state));
 });
 
-// 키보드 단축키 (1-4)
-document.addEventListener('keydown', (e) => {
-  const map = { '1': 'idle', '2': 'listening', '3': 'thinking', '4': 'speaking' };
-  if (map[e.key]) setState(map[e.key]);
-});
-
-// 초기 상태 (대기)
 setState('idle');
 
-// ── Electron 연동: 음성 백엔드 상태 수신 ──────────────
-// main.js 가 eddie_state.json 을 폴링해서 보내주는 상태로 자동 전환.
-// (브라우저 단독 실행 시 eddieAPI 없음 → 하단 버튼 수동 조작 가능)
+// ── Electron 연동 ──
 if (window.eddieAPI && typeof window.eddieAPI.onStateUpdate === 'function') {
   window.eddieAPI.onStateUpdate((data) => {
     if (data && data.state) {
       setState(data.state);
-      // speaking 시 응답 텍스트가 있으면 표시
       if (data.state === 'speaking' && data.detail && data.detail.text) {
         typeText(data.detail.text);
       }
     }
   });
+  document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') {
+      e.preventDefault();
+      if (window.eddieAPI.sendCommand) window.eddieAPI.sendCommand('record');
+    }
+  });
 }
 </script>
-
 </body>
 </html>
