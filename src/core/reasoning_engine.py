@@ -66,7 +66,7 @@ class EddieCore:
         self.model: str = os.getenv("EDDIE_OPENAI_MODEL", "gpt-5.4-mini")
 
         # 도구 호출 루프 최대 반복 (무한루프 방지)
-        self.max_tool_rounds: int = int(os.getenv("EDDIE_MAX_TOOL_ROUNDS", "5"))
+        self.max_tool_rounds: int = int(os.getenv("EDDIE_MAX_TOOL_ROUNDS", "8"))
 
         # 파일 접근 허용 루트 (비우면 시스템 폴더 외 전체 허용)
         self.file_root: str | None = os.getenv("EDDIE_FILE_ROOT") or None
@@ -92,6 +92,7 @@ class EddieCore:
         self._web_search = None   # WebSearch (MOD-TOL-001)
         self._file_ops = None     # FileOperations (MOD-TOL-002)
         self._browser = None      # BrowserControl (MOD-TOL-003), 세션 재사용
+        self._arduino = None      # ArduinoControl (MOD-TOL-005)
 
     @staticmethod
     def _load_env() -> None:
@@ -352,6 +353,74 @@ class EddieCore:
                     },
                 },
             },
+            # --- MOD-TOL-005 아두이노 제어 ---
+            {
+                "type": "function",
+                "function": {
+                    "name": "arduino_list_boards",
+                    "description": "USB로 연결된 아두이노 보드와 포트를 조회한다.",
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "arduino_write_sketch",
+                    "description": (
+                        "아두이노 스케치(.ino) 코드를 저장한다. 코드를 새로 작성하거나 "
+                        "수정할 때 호출한다. 같은 name으로 다시 호출하면 덮어쓴다."
+                    ),
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "스케치 이름 (영문/숫자 권장, 예: blink)",
+                            },
+                            "code": {
+                                "type": "string",
+                                "description": "아두이노 C++ 스케치 전체 코드 (setup·loop 포함)",
+                            },
+                        },
+                        "required": ["name", "code"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "arduino_compile",
+                    "description": (
+                        "저장된 스케치를 컴파일한다. 보드는 자동 설정된다. "
+                        "실패하면 compiler_error를 읽고 코드를 고친 뒤 arduino_write_sketch로 "
+                        "다시 저장하고 재컴파일한다. 성공 후에 업로드한다."
+                    ),
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string", "description": "컴파일할 스케치 이름"},
+                        },
+                        "required": ["name"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "arduino_upload",
+                    "description": (
+                        "컴파일이 성공한 스케치를 연결된 보드에 업로드한다. "
+                        "포트와 보드는 자동 감지된다. 컴파일 성공을 먼저 확인한 뒤 호출한다."
+                    ),
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string", "description": "업로드할 스케치 이름"},
+                        },
+                        "required": ["name"],
+                    },
+                },
+            },
         ]
 
     # ============================================================
@@ -396,6 +465,15 @@ class EddieCore:
             self._browser = bc
         return self._browser
 
+    def _get_arduino(self):
+        """ArduinoControl(MOD-TOL-005) 지연 생성."""
+        if self._arduino is None:
+            self._ensure_src_on_path()
+            from action.arduino_control import ArduinoControl
+
+            self._arduino = ArduinoControl()
+        return self._arduino
+
     def _auto_screenshot_path(self) -> str:
         """스크린샷 자동 저장 경로 (<프로젝트>/screenshots/shot_타임스탬프.png)."""
         project_root = Path(__file__).resolve().parent.parent.parent
@@ -433,6 +511,28 @@ class EddieCore:
                     path=path, full_page=args.get("full_page", False)
                 )
                 return json.dumps(result, ensure_ascii=False)
+
+            if name == "arduino_list_boards":
+                return json.dumps(
+                    self._get_arduino().list_boards(), ensure_ascii=False
+                )
+            if name == "arduino_write_sketch":
+                return json.dumps(
+                    self._get_arduino().write_sketch(
+                        name=args.get("name"), code=args.get("code", "")
+                    ),
+                    ensure_ascii=False,
+                )
+            if name == "arduino_compile":
+                return json.dumps(
+                    self._get_arduino().compile(name=args.get("name")),
+                    ensure_ascii=False,
+                )
+            if name == "arduino_upload":
+                return json.dumps(
+                    self._get_arduino().upload(name=args.get("name")),
+                    ensure_ascii=False,
+                )
 
             return json.dumps(
                 {"status": "error", "message": f"알 수 없는 도구: {name}"},
