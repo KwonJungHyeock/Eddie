@@ -163,7 +163,7 @@ html, body {
   stroke: var(--state-color);
   stroke-width: 0.7;
   filter: drop-shadow(0 0 3px var(--state-glow));
-  transition: stroke 0.6s ease;
+  transition: stroke 0.8s cubic-bezier(0.4,0,0.2,1), opacity 0.8s ease;
 }
 .ring.r1 { opacity: 0.18; }
 .ring.r2 { opacity: 0.3; }
@@ -184,15 +184,48 @@ html, body {
 }
 .core {
   fill: var(--state-color);
-  filter: drop-shadow(0 0 12px var(--state-color)) drop-shadow(0 0 30px var(--state-glow)) drop-shadow(0 0 60px var(--state-glow));
-  transition: fill 0.6s ease;
-  animation: corePulse 2s ease-in-out infinite;
+  filter: drop-shadow(0 0 10px var(--state-color)) drop-shadow(0 0 24px var(--state-glow));
+  transition: fill 0.7s cubic-bezier(0.4,0,0.2,1);
+  animation: corePulse 3.2s ease-in-out infinite;
+  transform-origin: center; transform-box: fill-box;
+}
+.core-inner {
+  fill: #fff;
+  opacity: 0.85;
+  filter: drop-shadow(0 0 6px var(--state-color));
+  animation: corePulse 3.2s ease-in-out infinite reverse;
+  transform-origin: center; transform-box: fill-box;
+}
+.core-halo {
+  fill: var(--state-color);
+  opacity: 0.06;
+  filter: blur(12px);
+  transition: fill 0.7s ease;
+  animation: haloPulse 3.2s ease-in-out infinite;
+  transform-origin: center; transform-box: fill-box;
+}
+.core-halo2 {
+  fill: var(--state-color);
+  opacity: 0.12;
+  filter: blur(6px);
+  transition: fill 0.7s ease;
+  animation: haloPulse 3.2s ease-in-out infinite;
+  transform-origin: center; transform-box: fill-box;
 }
 @keyframes corePulse {
   0%,100% { transform: scale(1); opacity: 1; }
-  50%     { transform: scale(1.08); opacity: 0.92; }
+  50%     { transform: scale(1.06); opacity: 0.95; }
 }
-.core-ring { fill: none; stroke: rgba(255,255,255,0.6); stroke-width: 0.5; }
+@keyframes haloPulse {
+  0%,100% { transform: scale(1); opacity: 0.06; }
+  50%     { transform: scale(1.18); opacity: 0.14; }
+}
+.core-ring {
+  fill: none;
+  stroke: rgba(255,255,255,0.5);
+  stroke-width: 0.5;
+  transition: stroke 0.6s ease;
+}
 .angle-marker { fill: var(--state-color); opacity: 0.5; filter: drop-shadow(0 0 2px var(--state-glow)); }
 .particle { fill: var(--state-color); opacity: 0; filter: drop-shadow(0 0 2px var(--state-color)); }
 
@@ -336,9 +369,12 @@ html, body {
       <circle class="ring r3" cx="0" cy="0" r="125"/>
       <g id="waveform"></g>
       <g id="particles"></g>
-      <circle class="core" cx="0" cy="0" r="22"/>
+      <circle class="core-halo" cx="0" cy="0" r="48"/>
+      <circle class="core-halo2" cx="0" cy="0" r="34"/>
+      <circle class="core" cx="0" cy="0" r="20"/>
+      <circle class="core-inner" cx="0" cy="0" r="9"/>
       <circle class="core-ring" cx="0" cy="0" r="22"/>
-      <circle class="core-ring" cx="0" cy="0" r="32" stroke-opacity="0.3"/>
+      <circle class="core-ring" cx="0" cy="0" r="32" stroke-opacity="0.25"/>
     </svg>
     <div class="viz-label">
       <div class="viz-label-state" id="state-label">대기</div>
@@ -428,7 +464,7 @@ for (let i = 0; i < NUM_LINES; i++) {
   const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
   line.setAttribute('class', 'wave-line');
   waveform.appendChild(line);
-  wfLines.push({ el: line, angle, phase: Math.random() * Math.PI * 2 });
+  wfLines.push({ el: line, angle, phase: Math.random() * Math.PI * 2, amp: 2, prevAmp: 2 });
 }
 
 // ── 입자 ──
@@ -485,12 +521,18 @@ function animate() {
     const s1 = Math.sin(t*freq + i*ph + line.phase);
     const s2 = Math.sin(t*freq*1.7 + i*ph*1.3 + line.phase);
     const noise = (Math.random()-0.5)*jitter;
-    let amp = Math.max(2, baseAmp + s1*(jitter*0.6) + s2*(jitter*0.3) + noise);
+    const target = Math.max(2, baseAmp + s1*(jitter*0.6) + s2*(jitter*0.3) + noise);
+    // 부드러운 보간 (이전 값에서 target으로 서서히) → 물결처럼 자연스럽게
+    line.amp += (target - line.amp) * 0.18;
+    const amp = line.amp;
     const inner = 80, outer = inner + amp;
-    line.el.setAttribute('x1', (Math.cos(line.angle)*inner).toFixed(1));
-    line.el.setAttribute('y1', (Math.sin(line.angle)*inner).toFixed(1));
-    line.el.setAttribute('x2', (Math.cos(line.angle)*outer).toFixed(1));
-    line.el.setAttribute('y2', (Math.sin(line.angle)*outer).toFixed(1));
+    const ca = Math.cos(line.angle), sa = Math.sin(line.angle);
+    line.el.setAttribute('x1', (ca*inner).toFixed(1));
+    line.el.setAttribute('y1', (sa*inner).toFixed(1));
+    line.el.setAttribute('x2', (ca*outer).toFixed(1));
+    line.el.setAttribute('y2', (sa*outer).toFixed(1));
+    // 진폭에 따라 라인 투명도 살짝 변화 (생동감)
+    line.el.style.opacity = (0.55 + Math.min(amp/60, 0.45)).toFixed(2);
   });
 
   // 입자 (thinking)
