@@ -112,6 +112,7 @@ def run_gui_mode():
         stt._ensure_model()
     except SpeechToTextError as e:
         print(f"  [에러] {e}")
+        core.close()  # 자원 정리
         return
     print("  준비 완료. HUD 에서 스페이스바를 누르세요.\n")
 
@@ -172,6 +173,7 @@ def run_gui_mode():
             except Exception:
                 pass
         bus.set_state("idle")
+        core.close()  # 브라우저 등 자원 정리
 
     print("\n  EDDIE 음성 챗 종료.")
 
@@ -196,6 +198,7 @@ def run_console_mode():
         stt._ensure_model()
     except SpeechToTextError as e:
         print(f"  [에러] {e}")
+        core.close()  # 자원 정리
         return
     print("  준비 완료.\n")
 
@@ -218,6 +221,7 @@ def run_console_mode():
             _process_turn(audio, stt, core, tts, bus, print)
     finally:
         bus.set_state("idle")
+        core.close()  # 브라우저 등 자원 정리
 
     print("\n  종료. 정혁님, 수고하셨습니다.")
 
