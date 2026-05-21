@@ -135,6 +135,18 @@ class SpeechToText:
                 self._resolved_device = dev
                 elapsed = time.time() - t_start
                 print(f"  모델 로드 완료: {dev.upper()} 사용 ({elapsed:.1f}초)")
+                # GPU 워밍업: 더미 추론으로 CUDA 커널 미리 초기화
+                # (첫 실제 발화의 워밍업 지연 제거 → 처음부터 빠름)
+                if dev == "cuda":
+                    try:
+                        import numpy as _np
+                        print("  GPU 워밍업 중...")
+                        _dummy = _np.zeros(16000, dtype=_np.float32)  # 1초 무음
+                        _segs, _ = self._model.transcribe(_dummy, language=self.language, beam_size=1)
+                        list(_segs)  # 제너레이터 소비하여 실제 추론 강제
+                        print("  워밍업 완료. 첫 발화부터 빠릅니다.")
+                    except Exception:
+                        pass  # 워밍업 실패는 무해
                 if dev == "cpu" and len(attempts) > 1:
                     print(f"  ⚠ GPU 사용 불가 — CPU 폴백. (CUDA/cuDNN 미설치 가능성)")
                 return
@@ -173,7 +185,7 @@ class SpeechToText:
             segments_iter, info = self._model.transcribe(
                 audio_input,
                 language=self.language,
-                beam_size=1,
+                beam_size=5,
                 vad_filter=True,  # Whisper 내부 VAD로 침묵 구간 자동 제거
             )
 

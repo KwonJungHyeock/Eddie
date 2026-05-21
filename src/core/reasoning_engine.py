@@ -82,11 +82,11 @@ class EddieCore:
 
         # 입력 키워드별 분기
         if any(kw in msg for kw in ["안녕", "hi", "hello", "ㅎㅇ"]):
-            return f"안녕하세요, {title}. 에디입니다. 무엇을 도와드릴까요?"
+            return f"안녕하세요 {title}, 에디예요. 무엇을 도와드릴까요?"
 
         if any(kw in msg for kw in ["누구", "이름", "정체"]):
             return (
-                f"저는 에디입니다. "
+                f"저는 에디예요. "
                 f"Eduino's Digital Development Intelligent Engineer의 약자이며, "
                 f"{title}의 전담 AI 비서로 동작합니다."
             )
