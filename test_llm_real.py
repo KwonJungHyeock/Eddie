@@ -27,8 +27,8 @@ print("=" * 50)
 
 # 1번: 일반 대화 (도구 X)  /  2번: 검색 필요 (web_search 호출 기대)
 questions = [
-    "에디야 안녕",
-    "오늘 대한민국 환율(원/달러) 검색해서 알려줘",
+    "C:\\Users\\RDS\\Documents\\Eddie 폴더에 뭐가 있는지 목록 보여줘",
+    "그 안에서 README.md 읽어서 요약해줘",
 ]
 
 for msg in questions:
