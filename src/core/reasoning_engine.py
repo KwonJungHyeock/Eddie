@@ -66,7 +66,7 @@ class EddieCore:
         self.model: str = os.getenv("EDDIE_OPENAI_MODEL", "gpt-5.4-mini")
 
         # 도구 호출 루프 최대 반복 (무한루프 방지)
-        self.max_tool_rounds: int = int(os.getenv("EDDIE_MAX_TOOL_ROUNDS", "8"))
+        self.max_tool_rounds: int = int(os.getenv("EDDIE_MAX_TOOL_ROUNDS", "12"))
 
         # 파일 접근 허용 루트 (비우면 시스템 폴더 외 전체 허용)
         self.file_root: str | None = os.getenv("EDDIE_FILE_ROOT") or None
@@ -421,6 +421,63 @@ class EddieCore:
                     },
                 },
             },
+            {
+                "type": "function",
+                "function": {
+                    "name": "arduino_install_library",
+                    "description": (
+                        "아두이노 라이브러리를 설치한다. 컴파일 에러가 "
+                        "'XXX.h: No such file or directory'면 그 헤더명으로 이 도구를 호출한 뒤 "
+                        "다시 컴파일한다. 헤더명(예: 'DHT.h', 'Adafruit_NeoPixel.h', "
+                        "'LiquidCrystal_I2C.h')을 그대로 넣으면 알맞은 라이브러리를 찾아 설치한다."
+                    ),
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "헤더명·별칭·라이브러리명 (예: 'DHT.h', 'neopixel')",
+                            },
+                        },
+                        "required": ["name"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "arduino_search_library",
+                    "description": (
+                        "라이브러리의 정확한 이름을 모를 때 검색한다. "
+                        "install_library가 실패하면 이걸로 정확한 이름을 찾아 다시 설치한다."
+                    ),
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {"type": "string", "description": "검색어 (예: 'DHT', 'OLED')"},
+                        },
+                        "required": ["query"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "arduino_read_serial",
+                    "description": (
+                        "보드의 시리얼 출력을 읽는다. 센서값 확인이나 동작 검증에 사용. "
+                        "Serial.begin()의 통신 속도(baud)를 맞춰야 한다(기본 9600). "
+                        "업로드 후 호출하면 센서가 제대로 동작하는지 값을 받아 확인할 수 있다."
+                    ),
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "baud": {"type": "integer", "description": "통신 속도 (기본 9600)"},
+                            "duration_s": {"type": "number", "description": "수신 시간 초 (기본 3, 최대 15)"},
+                        },
+                    },
+                },
+            },
         ]
 
     # ============================================================
@@ -531,6 +588,24 @@ class EddieCore:
             if name == "arduino_upload":
                 return json.dumps(
                     self._get_arduino().upload(name=args.get("name")),
+                    ensure_ascii=False,
+                )
+            if name == "arduino_install_library":
+                return json.dumps(
+                    self._get_arduino().install_library(name=args.get("name")),
+                    ensure_ascii=False,
+                )
+            if name == "arduino_search_library":
+                return json.dumps(
+                    self._get_arduino().search_library(query=args.get("query")),
+                    ensure_ascii=False,
+                )
+            if name == "arduino_read_serial":
+                return json.dumps(
+                    self._get_arduino().read_serial(
+                        baud=args.get("baud", 9600),
+                        duration_s=args.get("duration_s", 3.0),
+                    ),
                     ensure_ascii=False,
                 )
 

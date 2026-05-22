@@ -36,6 +36,30 @@ class ArduinoControl:
 
     DEFAULT_TIMEOUT = 180  # 컴파일/업로드 여유 (초)
 
+    # 헤더(#include)·별칭 → arduino-cli 라이브러리 정확한 이름 매핑.
+    # 에듀이노 주력 센서 우선 등록. 없는 건 lib search 로 폴백.
+    LIBRARY_MAP = {
+        # DHT 온습도 (의존성: Adafruit Unified Sensor)
+        "dht.h": "DHT sensor library",
+        "dht": "DHT sensor library",
+        "dht11": "DHT sensor library",
+        # NeoPixel
+        "adafruit_neopixel.h": "Adafruit NeoPixel",
+        "neopixel": "Adafruit NeoPixel",
+        # LCD1602 I2C
+        "liquidcrystal_i2c.h": "LiquidCrystal I2C",
+        "lcd1602": "LiquidCrystal I2C",
+        "lcd": "LiquidCrystal I2C",
+        # HC-SR04 초음파 (라이브러리 없이 pulseIn 가능하나, 쓸 경우 NewPing)
+        "newping.h": "NewPing",
+        "sr04": "NewPing",
+        "hc-sr04": "NewPing",
+    }
+    # 일부 라이브러리는 의존성 동반 설치 필요
+    LIBRARY_DEPS = {
+        "DHT sensor library": ["Adafruit Unified Sensor"],
+    }
+
     def __init__(
         self,
         cli_path: Optional[str] = None,
@@ -243,4 +267,124 @@ class ArduinoControl:
             "port": resolved_port,
             "message": "업로드 실패",
             "error": error_text,
+        }
+
+    def install_library(self, name: str) -> dict:
+        """라이브러리를 설치한다.
+
+        name: 헤더명(예: 'DHT.h'), 별칭(예: 'neopixel'), 또는 정확한 라이브러리명.
+              매핑 테이블에 있으면 정확한 이름으로 변환, 없으면 입력값 그대로 시도.
+        의존성이 있는 라이브러리는 함께 설치한다.
+        """
+        raw = (name or "").strip()
+        if not raw:
+            return {"status": "error", "message": "라이브러리 이름이 비어 있습니다."}
+
+        # 매핑: 헤더/별칭 → 정확한 이름 (소문자 키)
+        resolved = self.LIBRARY_MAP.get(raw.lower(), raw)
+
+        # 설치 대상 = 의존성 먼저, 그다음 본체
+        targets = list(self.LIBRARY_DEPS.get(resolved, [])) + [resolved]
+        installed, failed = [], []
+        for lib in targets:
+            try:
+                rc, out, err = self._run(["lib", "install", lib], timeout=120)
+            except ArduinoControlError as e:
+                return {"status": "error", "message": str(e)}
+            if rc == 0:
+                installed.append(lib)
+            else:
+                failed.append({"lib": lib, "error": (err or out or "").strip()[:300]})
+
+        if failed:
+            return {
+                "status": "error",
+                "message": "일부 라이브러리 설치 실패",
+                "requested": raw,
+                "resolved": resolved,
+                "installed": installed,
+                "failed": failed,
+            }
+        return {
+            "status": "ok",
+            "requested": raw,
+            "resolved": resolved,
+            "installed": installed,
+            "message": f"라이브러리 설치 완료: {', '.join(installed)}",
+        }
+
+    def search_library(self, query: str) -> dict:
+        """라이브러리를 검색한다 (정확한 이름을 모를 때)."""
+        q = (query or "").strip()
+        if not q:
+            return {"status": "error", "message": "검색어가 비어 있습니다."}
+        try:
+            rc, out, err = self._run(["lib", "search", q, "--format", "json"], timeout=60)
+        except ArduinoControlError as e:
+            return {"status": "error", "message": str(e)}
+        try:
+            data = json.loads(out or "{}")
+        except json.JSONDecodeError:
+            return {"status": "error", "message": f"검색 결과 파싱 실패: {(err or out)[:200]}"}
+        libs = data.get("libraries", data if isinstance(data, list) else [])
+        names = []
+        for lib in libs[:10]:
+            nm = lib.get("name") if isinstance(lib, dict) else None
+            if nm:
+                names.append(nm)
+        return {"status": "ok", "query": q, "count": len(names), "results": names}
+
+    def read_serial(
+        self,
+        port: Optional[str] = None,
+        baud: int = 9600,
+        duration_s: float = 3.0,
+        max_lines: int = 30,
+    ) -> dict:
+        """업로드 후 보드의 시리얼 출력을 읽는다 (센서값 확인·디버깅용).
+
+        duration_s 동안 시리얼을 수신해 줄 단위로 모은다. pyserial 사용.
+        """
+        try:
+            import serial  # pyserial
+        except ImportError:
+            return {
+                "status": "error",
+                "message": "pyserial 미설치. 'pip install pyserial' 필요.",
+            }
+
+        resolved_port = port or self.default_port
+        if not resolved_port:
+            info = self.list_boards()
+            if info.get("status") == "ok" and info.get("boards"):
+                resolved_port = info["boards"][0]["port"]
+        if not resolved_port:
+            return {"status": "error", "message": "연결된 보드를 찾지 못했습니다."}
+
+        import time as _time
+        lines: list[str] = []
+        try:
+            with serial.Serial(resolved_port, baud, timeout=0.5) as ser:
+                end = _time.time() + max(0.5, min(duration_s, 15.0))
+                while _time.time() < end and len(lines) < max_lines:
+                    raw = ser.readline()
+                    if not raw:
+                        continue
+                    text = raw.decode("utf-8", errors="replace").strip()
+                    if text:
+                        lines.append(text)
+        except Exception as e:  # noqa: BLE001 (serial.SerialException 등)
+            return {
+                "status": "error",
+                "port": resolved_port,
+                "message": f"시리얼 읽기 실패: {type(e).__name__}: {e}. "
+                           f"(포트 점유 여부·baud 확인)",
+            }
+
+        return {
+            "status": "ok",
+            "port": resolved_port,
+            "baud": baud,
+            "line_count": len(lines),
+            "lines": lines,
         }
