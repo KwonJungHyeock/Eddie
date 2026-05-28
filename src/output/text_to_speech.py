@@ -111,7 +111,11 @@ class TextToSpeech:
         out = Path(output_path).expanduser().resolve()
         out.parent.mkdir(parents=True, exist_ok=True)
 
-        raw_tmp = Path(tempfile.gettempdir()) / f"eddie_tts_raw_{os.getpid()}.mp3"
+        import uuid as _uuid
+        raw_tmp = (
+            Path(tempfile.gettempdir())
+            / f"eddie_tts_raw_{os.getpid()}_{_uuid.uuid4().hex[:8]}.mp3"
+        )
         try:
             self._run_async(self._async_synthesize(
                 text, str(raw_tmp), spec["rate"], spec["pitch"]
@@ -224,8 +228,16 @@ class TextToSpeech:
 
     def synthesize_only(self, text: str, preset: Optional[str] = None) -> dict:
         """합성만 하고 재생 안 함. 파일 경로 + duration 반환.
-        (자막-음성 동기화용: 호출부가 자막 발행과 재생을 동시에 시작)"""
-        tmp_path = Path(tempfile.gettempdir()) / f"eddie_tts_{os.getpid()}.mp3"
+        (자막-음성 동기화용: 호출부가 자막 발행과 재생을 동시에 시작)
+
+        ⚠ 매 호출마다 고유 파일명 사용 — 문장 단위 선행 합성(스트리밍) 시
+           여러 문장이 같은 파일을 덮어써 재생이 깨지는 것을 방지한다.
+        """
+        import uuid
+        tmp_path = (
+            Path(tempfile.gettempdir())
+            / f"eddie_tts_{os.getpid()}_{uuid.uuid4().hex[:8]}.mp3"
+        )
         result = self.synthesize(text, str(tmp_path), preset=preset)
         if result["status"] == "ok":
             result["duration"] = self._get_duration(result["path"])

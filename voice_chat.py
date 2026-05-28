@@ -42,18 +42,35 @@ def _init_stdout():
             pass
 
 
+import re as _re
+import threading as _threading
+import queue as _queue
+
+
+def _split_sentences(text: str) -> list[str]:
+    """응답 텍스트를 문장 단위로 분할 (한국어/영어 종결부호·줄바꿈 기준)."""
+    text = (text or "").strip()
+    if not text:
+        return []
+    parts = _re.split(r"(?<=[.!?。\n])\s+", text)
+    return [p.strip() for p in parts if p.strip()]
+
+
 def _process_turn(audio, stt, core, tts, bus, log) -> None:
-    """녹음된 오디오 한 건을 STT→추론→TTS 처리."""
+    """녹음된 오디오 한 건을 STT→추론→TTS(문장 스트리밍) 처리."""
+    import time as _t  # 구간 측정용
     peak = float(np.abs(audio).max()) if len(audio) > 0 else 0.0
     if peak < 0.01:
         log("  ⚠ 신호 약함 — 다시 시도해주세요.")
         bus.set_state("idle")
         return
 
-    # STT + 추론 → thinking
+    # STT → thinking
     bus.set_state("thinking")
     log("  음성 인식 중...")
+    _t0 = _t.perf_counter()
     stt_result = stt.transcribe(audio)
+    _t_stt = _t.perf_counter() - _t0
     if stt_result["status"] != "ok" or not stt_result["text"]:
         log("  [인식 실패] 다시 시도해주세요.")
         bus.set_state("idle")
@@ -62,26 +79,69 @@ def _process_turn(audio, stt, core, tts, bus, log) -> None:
     user_text = stt_result["text"]
     log(f"  정혁님: \"{user_text}\"")
 
+    # LLM 추론
+    _t1 = _t.perf_counter()
     eddie_text = core.chat(user_text)
+    _t_llm = _t.perf_counter() - _t1
     log(f"  에디: \"{eddie_text}\"")
 
-    # TTS: 먼저 합성(재생 X) + 길이 측정
-    log("  음성 합성 중...")
-    tts_result = tts.synthesize_only(eddie_text)
-    if tts_result["status"] != "ok":
-        log(f"  [TTS 에러] {tts_result.get('message')}")
+    # === 문장 단위 스트리밍 재생 ===
+    # 핵심: 첫 문장이 합성되는 즉시 재생 시작 → 나머지는 백그라운드로 선행 합성.
+    # 그래서 "전체 합성을 기다리는" 대기(노란색)가 거의 사라진다.
+    sentences = _split_sentences(eddie_text)
+    if not sentences:
         bus.set_state("idle")
         return
 
-    duration = tts_result.get("duration", 0.0)
+    log("  음성 합성/재생 중 (스트리밍)...")
+    _t2 = _t.perf_counter()
 
-    # 자막 발행(duration 포함) + 음성 재생 동시 시작
-    # HUD는 duration에 맞춰 자막을 타이핑 → 음성과 함께 끝남
-    bus.set_state("speaking", detail={"text": eddie_text, "duration": duration})
-    try:
-        tts.play_file(tts_result["path"])  # 블로킹 재생
-    except Exception as e:
-        log(f"  [재생 에러] {e}")
+    # 선행 합성 워커: 문장을 순서대로 합성해 큐에 넣음
+    synth_q: "_queue.Queue" = _queue.Queue()
+
+    def _synth_worker():
+        for s in sentences:
+            try:
+                r = tts.synthesize_only(s)
+                synth_q.put((s, r))
+            except Exception as e:  # noqa: BLE001
+                synth_q.put((s, {"status": "error", "message": str(e)}))
+        synth_q.put(None)  # 종료 신호
+
+    _threading.Thread(target=_synth_worker, daemon=True).start()
+
+    first = True
+    idx = 0
+    while True:
+        item = synth_q.get()
+        if item is None:
+            break
+        sentence, r = item
+        idx += 1
+        if r.get("status") != "ok":
+            log(f"  [TTS 에러] {r.get('message')}")
+            continue
+        if first:
+            _t_first = _t.perf_counter() - _t2
+            log(f"  ⏱  STT {_t_stt:.2f}s | LLM {_t_llm:.2f}s | 첫음성까지 {_t_first:.2f}s")
+            first = False
+        # 자막 발행: 첫 문장은 새로, 이후는 누적(append). HUD가 append/replace 구분.
+        bus.set_state("speaking", detail={
+            "text": sentence,
+            "duration": r.get("duration", 0.0),
+            "append": idx > 1,
+        })
+        try:
+            tts.play_file(r["path"])  # 블로킹 재생 (이 사이 다음 문장은 선행 합성됨)
+        except Exception as e:  # noqa: BLE001
+            log(f"  [재생 에러] {e}")
+        finally:
+            # 재생 끝난 임시 파일 정리 (고유명이라 누적 방지)
+            try:
+                import os as _os
+                _os.unlink(r["path"])
+            except OSError:
+                pass
 
     bus.set_state("idle")
 

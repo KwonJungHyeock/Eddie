@@ -74,3 +74,11 @@ desktop.ini
 ~$*
 eddie_state.json 
 eddie_state.json 
+
+# --- EDDIE 런타임 생성 파일 ---
+eddie_data.json
+eddie_command.json
+eddie_*.json.tmp
+
+# --- 아두이노 스케치 (EDDIE가 재생성) ---
+arduino_sketches/

@@ -236,6 +236,68 @@ html, body {
   text-align: center;
   width: 100%;
 }
+
+/* ── 센서 데이터 패널 (수치 / 플로터 독립 2개) ── */
+.data-panel {
+  position: fixed;
+  z-index: 18;
+  width: 320px;
+  background: rgba(4, 10, 22, 0.82);
+  border: 1px solid var(--state-color);
+  box-shadow: 0 0 30px var(--state-glow), inset 0 0 30px rgba(0,0,0,0.4);
+  border-radius: 4px;
+  padding: 18px 20px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease, top 0.5s cubic-bezier(0.4,0,0.2,1), left 0.5s cubic-bezier(0.4,0,0.2,1), right 0.5s cubic-bezier(0.4,0,0.2,1), bottom 0.5s cubic-bezier(0.4,0,0.2,1), width 0.4s ease;
+  font-family: 'JetBrains Mono', monospace;
+}
+.data-panel.show { opacity: 1; }
+
+/* 크기 3단계 */
+.data-panel[data-size="1"] { width: 260px; padding: 14px 16px; }
+.data-panel[data-size="2"] { width: 340px; padding: 18px 20px; }
+.data-panel[data-size="3"] { width: 440px; padding: 22px 26px; }
+.data-panel[data-size="3"] .dp-val .v { font-size: 38px; }
+.data-panel[data-size="3"] .dp-plot svg { height: 200px; }
+.data-panel[data-size="1"] .dp-val .v { font-size: 24px; }
+.data-panel[data-size="1"] .dp-plot svg { height: 110px; }
+
+/* 9개 위치 (프레임 안쪽 여백) */
+.data-panel[data-pos="top-left"]      { top: 90px;  bottom:auto; left: 70px;  right: auto; transform: none; }
+.data-panel[data-pos="top-center"]    { top: 90px;  bottom:auto; left: 50%;   right: auto; transform: translateX(-50%); }
+.data-panel[data-pos="top-right"]     { top: 90px;  bottom:auto; left: auto;  right: 70px; transform: none; }
+.data-panel[data-pos="center-left"]   { top: 50%;   bottom:auto; left: 70px;  right: auto; transform: translateY(-50%); }
+.data-panel[data-pos="center"]        { top: 50%;   bottom:auto; left: 50%;   right: auto; transform: translate(-50%,-50%); }
+.data-panel[data-pos="center-right"]  { top: 50%;   bottom:auto; left: auto;  right: 70px; transform: translateY(-50%); }
+.data-panel[data-pos="bottom-left"]   { top: auto;  bottom: 110px; left: 70px;  right: auto; transform: none; }
+.data-panel[data-pos="bottom-center"] { top: auto;  bottom: 110px; left: 50%;   right: auto; transform: translateX(-50%); }
+.data-panel[data-pos="bottom-right"]  { top: auto;  bottom: 110px; left: auto;  right: 70px; transform: none; }
+.data-panel .dp-title {
+  font-size: 10px; letter-spacing: 0.2em; color: var(--text-muted);
+  text-transform: uppercase; margin-bottom: 14px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.data-panel .dp-title .dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--state-color); box-shadow: 0 0 8px var(--state-color);
+  animation: heartbeat 1.5s ease-in-out infinite;
+}
+/* 수치 카드 */
+.dp-values { display: flex; flex-direction: column; gap: 12px; }
+.dp-val { display: flex; align-items: baseline; justify-content: space-between;
+  border-bottom: 1px solid rgba(90,143,168,0.18); padding-bottom: 10px; }
+.dp-val .k { font-size: 13px; color: var(--text-secondary); letter-spacing: 0.05em; }
+.dp-val .v { font-size: 30px; font-weight: 500; color: var(--state-color);
+  text-shadow: 0 0 16px var(--state-glow); font-family: 'Orbitron', monospace; }
+/* 플로터 */
+.dp-plot { margin-top: 6px; }
+.dp-plot svg { width: 100%; height: 150px; display: block; }
+.dp-plot .pl-axis { stroke: rgba(90,143,168,0.25); stroke-width: 0.5; }
+.dp-plot .pl-line { fill: none; stroke-width: 1.6; filter: drop-shadow(0 0 4px var(--state-glow)); }
+.dp-legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+.dp-legend .lg { font-size: 10px; color: var(--text-secondary); display: flex; align-items: center; gap: 5px; }
+.dp-legend .lg .sw { width: 10px; height: 2px; display: inline-block; }
 .viz-label-state {
   font-family: 'Orbitron', sans-serif;
   font-size: 15px;
@@ -385,6 +447,15 @@ html, body {
 
 <div class="response">
   <div class="response-text" id="response-text"></div>
+</div>
+
+<div class="data-panel" id="panel-value" data-pos="center-left" data-size="2">
+  <div class="dp-title"><span>SENSOR VALUE</span><span class="dot"></span></div>
+  <div id="dp-value-body"></div>
+</div>
+<div class="data-panel" id="panel-plot" data-pos="center-right" data-size="2">
+  <div class="dp-title"><span>SERIAL PLOTTER</span><span class="dot"></span></div>
+  <div id="dp-plot-body"></div>
 </div>
 
 <div class="hint">
@@ -552,20 +623,27 @@ animate();
 
 // ── 상태 전환 ──
 let typingTimer = null;
-function typeText(text, duration) {
+let subtitleBase = '';  // 누적된 이전 문장들 (스트리밍 자막용)
+// text: 이번 문장. duration: 이번 문장 음성 길이. append: true면 기존 자막에 이어붙임.
+function typeText(text, duration, append) {
   const el = document.getElementById('response-text');
   if (typingTimer) clearInterval(typingTimer);
-  el.innerHTML = '<span class="cursor"></span>';
+  if (!append) subtitleBase = '';            // 새 응답 → 자막 초기화
+  const prefix = subtitleBase ? subtitleBase + ' ' : '';
   let i = 0;
-  // duration(초)이 주어지면 음성 길이에 맞춰 타이핑 속도 계산
-  // 없으면 기본 35ms. 약간 빠르게(0.9배) 해서 자막이 음성보다 살짝 먼저 끝나게.
+  // duration(초)이 주어지면 이번 문장 음성 길이에 맞춰 타이핑 속도 계산
   let interval = 35;
   if (duration && duration > 0 && text.length > 0) {
     interval = Math.max(12, (duration * 1000 * 0.7) / text.length);
   }
+  el.innerHTML = prefix + '<span class="cursor"></span>';
   typingTimer = setInterval(() => {
-    if (i >= text.length) { clearInterval(typingTimer); return; }
-    el.innerHTML = text.slice(0, i+1) + '<span class="cursor"></span>';
+    if (i >= text.length) {
+      clearInterval(typingTimer);
+      subtitleBase = (prefix + text).trim();  // 이번 문장을 누적에 합침
+      return;
+    }
+    el.innerHTML = prefix + text.slice(0, i+1) + '<span class="cursor"></span>';
     i++;
   }, interval);
 }
@@ -586,16 +664,129 @@ document.querySelectorAll('.ctrl-btn').forEach(btn => {
 
 setState('idle');
 
+// ── 센서 데이터 패널 (수치 / 플로터 독립 2개) ──
+const PLOT_COLORS = ['#00FFE5', '#00D9FF', '#FFB845', '#7FE0A0', '#FF6B9D'];
+
+function showPanel(id)  { document.getElementById(id).classList.add('show'); }
+function hidePanel(id)  { document.getElementById(id).classList.remove('show'); }
+function movePanel(id, position) {
+  const valid = ['top-left','top-center','top-right','center-left','center',
+                 'center-right','bottom-left','bottom-center','bottom-right'];
+  const pos = valid.includes(position) ? position : 'center-right';
+  document.getElementById(id).setAttribute('data-pos', pos);
+  resolveOverlap();  // 이동 후 겹침 검사
+}
+
+// 크기 3단계: 1(작음)~3(큼), up/down은 현재 단계에서 증감
+function resizePanel(id, size) {
+  const el = document.getElementById(id);
+  const cur = parseInt(el.getAttribute('data-size') || '2', 10);
+  const map = { small:1, medium:2, large:3 };
+  let next;
+  if (size === 'up')        next = cur + 1;
+  else if (size === 'down') next = cur - 1;
+  else if (map[size])       next = map[size];
+  else                      next = parseInt(size, 10) || cur;
+  next = Math.max(1, Math.min(3, next));  // 1~3 범위
+  el.setAttribute('data-size', String(next));
+  resolveOverlap();  // 크기 바뀌면 겹침 재검사
+}
+
+// 겹침 자동 방지: 두 패널이 '정확히 같은 위치'일 때만 세로로 분리.
+// (사용자가 명시적으로 top-right/bottom-right처럼 다르게 보냈으면 존중)
+function resolveOverlap() {
+  const v = document.getElementById('panel-value');
+  const p = document.getElementById('panel-plot');
+  if (!v.classList.contains('show') || !p.classList.contains('show')) return;
+  const vp = v.getAttribute('data-pos');
+  const pp = p.getAttribute('data-pos');
+  if (vp === pp) {
+    // 완전히 같은 칸 → value 위, plot 아래로 자동 분리
+    const col = (vp.split('-')[1]) || 'center';
+    v.setAttribute('data-pos', 'top-' + col);
+    p.setAttribute('data-pos', 'bottom-' + col);
+  }
+}
+
+// target(value/plot/all)을 패널 id 배열로
+function targetIds(target) {
+  if (target === 'value') return ['panel-value'];
+  if (target === 'plot')  return ['panel-plot'];
+  return ['panel-value', 'panel-plot'];  // all
+}
+
+function renderValuePanel(values) {
+  const body = document.getElementById('dp-value-body');
+  let html = '<div class="dp-values">';
+  for (const [k, v] of Object.entries(values)) {
+    const num = (typeof v === 'number') ? (Number.isInteger(v) ? v : v.toFixed(1)) : v;
+    html += `<div class="dp-val"><span class="k">${k}</span><span class="v">${num}</span></div>`;
+  }
+  html += '</div>';
+  body.innerHTML = html;
+  showPanel('panel-value');
+}
+
+function renderPlotPanel(series) {
+  const body = document.getElementById('dp-plot-body');
+  const W = 280, H = 140, pad = 6;
+  let allVals = [];
+  Object.values(series).forEach(arr => allVals = allVals.concat(arr));
+  if (allVals.length === 0) { body.innerHTML = '<div style="color:var(--text-muted);font-size:11px;">데이터 없음</div>'; showPanel('panel-plot'); return; }
+  let mn = Math.min(...allVals), mx = Math.max(...allVals);
+  if (mn === mx) { mn -= 1; mx += 1; }
+  const labels = Object.keys(series);
+
+  function pathFor(arr) {
+    if (arr.length < 2) {
+      const y = H - pad - ((arr[0]-mn)/(mx-mn))*(H-2*pad);
+      return `M ${pad} ${y.toFixed(1)} L ${W-pad} ${y.toFixed(1)}`;
+    }
+    return arr.map((v, i) => {
+      const x = pad + (i/(arr.length-1))*(W-2*pad);
+      const y = H - pad - ((v-mn)/(mx-mn))*(H-2*pad);
+      return `${i===0?'M':'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
+    }).join(' ');
+  }
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">`;
+  svg += `<line class="pl-axis" x1="${pad}" y1="${H-pad}" x2="${W-pad}" y2="${H-pad}"/>`;
+  svg += `<line class="pl-axis" x1="${pad}" y1="${pad}" x2="${pad}" y2="${H-pad}"/>`;
+  labels.forEach((l, i) => {
+    svg += `<path class="pl-line" d="${pathFor(series[l])}" stroke="${PLOT_COLORS[i%PLOT_COLORS.length]}"/>`;
+  });
+  svg += `</svg>`;
+
+  let legend = '<div class="dp-legend">';
+  labels.forEach((l, i) => {
+    legend += `<span class="lg"><span class="sw" style="background:${PLOT_COLORS[i%PLOT_COLORS.length]}"></span>${l}</span>`;
+  });
+  legend += `</div>`;
+  legend += `<div style="font-size:9px;color:var(--text-muted);margin-top:6px;">범위 ${mn.toFixed(1)} ~ ${mx.toFixed(1)}</div>`;
+
+  body.innerHTML = `<div class="dp-plot">${svg}</div>${legend}`;
+  showPanel('panel-plot');
+}
+
 // ── Electron 연동 ──
 if (window.eddieAPI && typeof window.eddieAPI.onStateUpdate === 'function') {
   window.eddieAPI.onStateUpdate((data) => {
     if (data && data.state) {
       setState(data.state);
       if (data.state === 'speaking' && data.detail && data.detail.text) {
-        typeText(data.detail.text, data.detail.duration);
+        typeText(data.detail.text, data.detail.duration, data.detail.append);
       }
     }
   });
+  // 센서 데이터 수신 (파일 채널) → 공용 handleData
+  if (typeof window.eddieAPI.onDataUpdate === 'function') {
+    const hudLoadTime = Date.now() / 1000;
+    window.eddieAPI.onDataUpdate((data) => {
+      if (!data) return;
+      if (data.ts && data.ts < hudLoadTime - 1 && data.kind !== 'hide') return;
+      handleData(data);
+    });
+  }
   document.addEventListener('keydown', (e) => {
     if (e.code === 'Space') {
       e.preventDefault();
@@ -603,6 +794,39 @@ if (window.eddieAPI && typeof window.eddieAPI.onStateUpdate === 'function') {
     }
   });
 }
+
+// ── 데이터 처리 (파일 채널 + WebSocket 공용) ──
+function handleData(data) {
+  if (!data) return;
+  if (data.kind === 'value' && data.values) renderValuePanel(data.values);
+  else if (data.kind === 'plot' && data.series) renderPlotPanel(data.series);
+  else if (data.kind === 'monitor') {
+    // 실시간 모니터링: 수치 + 그래프 동시 갱신
+    if (data.values) renderValuePanel(data.values);
+    if (data.series && Object.keys(data.series).length) renderPlotPanel(data.series);
+  }
+  else if (data.kind === 'monitor_error') { /* 음성으로 별도 안내됨 */ }
+  else if (data.kind === 'hide') targetIds(data.target).forEach(hidePanel);
+  else if (data.kind === 'move') targetIds(data.target).forEach(id => movePanel(id, data.position));
+  else if (data.kind === 'resize') targetIds(data.target).forEach(id => resizePanel(id, data.size));
+}
+
+// ── WebSocket 실시간 채널 (센서 모니터링 전용) ──
+(function connectDataWS() {
+  let ws = null, reconnectTimer = null;
+  function connect() {
+    try { ws = new WebSocket('ws://127.0.0.1:8765'); }
+    catch (e) { scheduleReconnect(); return; }
+    ws.onmessage = (ev) => { try { handleData(JSON.parse(ev.data)); } catch (e) {} };
+    ws.onclose = () => scheduleReconnect();
+    ws.onerror = () => { try { ws.close(); } catch (e) {} };
+  }
+  function scheduleReconnect() {
+    if (reconnectTimer) return;
+    reconnectTimer = setTimeout(() => { reconnectTimer = null; connect(); }, 1500);
+  }
+  connect();
+})();
 </script>
 </body>
 </html>

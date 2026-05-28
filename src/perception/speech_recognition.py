@@ -43,12 +43,14 @@ class SpeechToText:
         device: str = "auto",
         compute_type: str = "auto",
         language: Optional[str] = "ko",
+        beam_size: int = 1,
     ) -> None:
         """
         model_size: tiny / base / small / medium / large-v3
         device: "auto" (GPU 우선, 실패 시 CPU) / "cuda" / "cpu"
         compute_type: "auto" (device에 맞춤) / int8 / float16 / float32
         language: 'ko' (한국어 고정) 또는 None (자동 감지)
+        beam_size: 탐색 빔 크기. 1=가장 빠름(명령어 인식 충분), 5=정확도 우선(느림).
 
         device="auto": CUDA 사용 가능하면 GPU(float16), 아니면 CPU(int8)로 자동 폴백.
         """
@@ -56,6 +58,7 @@ class SpeechToText:
         self.device = device
         self.compute_type = compute_type
         self.language = language
+        self.beam_size = beam_size
         self._model = None  # lazy load
         self._resolved_device = None  # 실제 사용된 device 기록
 
@@ -185,7 +188,7 @@ class SpeechToText:
             segments_iter, info = self._model.transcribe(
                 audio_input,
                 language=self.language,
-                beam_size=5,
+                beam_size=self.beam_size,
                 vad_filter=True,  # Whisper 내부 VAD로 침묵 구간 자동 제거
             )
 

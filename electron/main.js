@@ -9,6 +9,7 @@ const { spawn } = require('child_process');
 const PROJECT_ROOT = path.join(__dirname, '..');
 const STATE_FILE = path.join(PROJECT_ROOT, 'eddie_state.json');
 const COMMAND_FILE = path.join(PROJECT_ROOT, 'eddie_command.json');
+const DATA_FILE = path.join(PROJECT_ROOT, 'eddie_data.json');
 
 let win = null;
 let pollTimer = null;
@@ -32,8 +33,19 @@ function createWindow() {
     },
   });
 
-  const hudPath = path.join(PROJECT_ROOT, 'docs', 'EDDIE-DSN-001_HUD_prototype_v0.1.html');
+  const hudPath = path.join(PROJECT_ROOT, 'docs', 'EDDIE-DSN-001_HUD_prototype_v0_1.html');
   win.loadFile(hudPath);
+
+  // 시작 시 상태/데이터 파일 초기화 — 이전 세션의 speaking 자막·패널이
+  // 다음 실행 때 다시 뜨는 잔류 현상 방지.
+  try {
+    fs.writeFileSync(STATE_FILE, JSON.stringify({
+      state: 'idle', detail: {}, ts: Date.now() / 1000,
+    }), 'utf-8');
+    fs.writeFileSync(DATA_FILE, JSON.stringify({
+      kind: 'hide', ts: Date.now() / 1000,
+    }), 'utf-8');
+  } catch (e) {}
 
   win.webContents.on('did-finish-load', () => {
     startPolling();
@@ -77,7 +89,17 @@ function stopVoiceBackend() {
     }), 'utf-8');
   } catch (e) {}
   if (voiceProc) {
-    try { voiceProc.kill(); } catch (e) {}
+    const pid = voiceProc.pid;
+    try {
+      if (process.platform === 'win32' && pid) {
+        // Windows: kill()은 자식(ffplay 등)을 안 죽임 → 트리 전체 강제 종료.
+        // 이게 안 되면 앱을 꺼도 음성이 계속 재생됨.
+        const { execSync } = require('child_process');
+        execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore' });
+      } else {
+        voiceProc.kill('SIGTERM');
+      }
+    } catch (e) {}
     voiceProc = null;
   }
 }
@@ -99,20 +121,41 @@ ipcMain.on('eddie-command', (_event, command) => {
 
 function startPolling() {
   stopPolling();
+  let lastTs = 0;
+  let lastDataTs = 0;
   pollTimer = setInterval(() => {
     fs.readFile(STATE_FILE, 'utf-8', (err, data) => {
       if (err) return;
       try {
         const parsed = JSON.parse(data);
-        if (parsed.state && parsed.state !== lastState) {
+        if (!parsed.state) return;
+        const changed = parsed.state !== lastState;
+        const newSentence = parsed.state === 'speaking' && parsed.ts !== lastTs;
+        if (changed || newSentence) {
           lastState = parsed.state;
+          lastTs = parsed.ts;
           if (win && !win.isDestroyed()) {
             win.webContents.send('eddie-state', parsed);
           }
         }
       } catch (e) {}
     });
-  }, 200);
+    // HUD 데이터 채널 (수치 패널 / 시리얼 플로터)
+    fs.readFile(DATA_FILE, 'utf-8', (err, data) => {
+      if (err) return;
+      try {
+        const parsed = JSON.parse(data);
+        // seq 기반 감지 — 같은 ts라도 새 액션이면 확실히 전달 (이동 명령 놓침 방지)
+        const key = parsed.seq != null ? parsed.seq : parsed.ts;
+        if (key != null && key !== lastDataTs) {
+          lastDataTs = key;
+          if (win && !win.isDestroyed()) {
+            win.webContents.send('eddie-data', parsed);
+          }
+        }
+      } catch (e) {}
+    });
+  }, 80);
 }
 
 function stopPolling() {

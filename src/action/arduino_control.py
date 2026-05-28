@@ -119,7 +119,12 @@ class ArduinoControl:
     # === 공개 메서드 ===
 
     def list_boards(self) -> dict:
-        """연결된 보드 목록을 조회한다 (포트·이름·FQBN)."""
+        """연결된 보드 목록을 조회한다 (포트·이름·FQBN).
+
+        배제 포트(기본 COM1: 시스템 내장 시리얼)는 제외한다.
+        EDDIE_ARDUINO_EXCLUDE_PORTS(쉼표구분)로 추가 배제 가능.
+        인식된 보드(FQBN 있음)를 목록 앞쪽으로 정렬한다.
+        """
         try:
             rc, out, err = self._run(["board", "list", "--format", "json"], timeout=30)
         except ArduinoControlError as e:
@@ -138,17 +143,29 @@ class ArduinoControl:
         else:
             entries = []
 
+        # 배제 포트 집합 (기본 COM1 + env 추가분), 대소문자 무시
+        exclude = {"com1"}
+        env_excl = os.getenv("EDDIE_ARDUINO_EXCLUDE_PORTS", "")
+        for p in env_excl.split(","):
+            p = p.strip().lower()
+            if p:
+                exclude.add(p)
+
         boards = []
         for entry in entries:
             port = (entry.get("port") or {}).get("address") or entry.get("address")
+            if not port or port.strip().lower() in exclude:
+                continue  # COM1 등 배제 포트 스킵
             matching = entry.get("matching_boards") or entry.get("boards") or []
             if matching:
                 name = matching[0].get("name", "Unknown")
                 fqbn = matching[0].get("fqbn", "")
             else:
                 name, fqbn = "Unknown", ""
-            if port:
-                boards.append({"port": port, "name": name, "fqbn": fqbn})
+            boards.append({"port": port, "name": name, "fqbn": fqbn})
+
+        # 인식된 보드(FQBN 있음)를 앞으로
+        boards.sort(key=lambda b: (b["fqbn"] == "",))
 
         return {"status": "ok", "count": len(boards), "boards": boards}
 
@@ -388,3 +405,220 @@ class ArduinoControl:
             "line_count": len(lines),
             "lines": lines,
         }
+
+    @staticmethod
+    def _parse_serial_values(lines: list[str]) -> dict:
+        """시리얼 줄들에서 수치를 뽑아 시리즈로 정리.
+
+        지원: 'Temp: 24.5' / 'Humidity=45' / 'T:24.5 H:45' / CSV '24.5,45' / 단일 '24.5'
+        반환: {label: [values...], ...}
+        """
+        series: dict[str, list[float]] = {}
+
+        def add(label: str, val: str) -> None:
+            try:
+                series.setdefault(label, []).append(float(val))
+            except ValueError:
+                pass
+
+        for ln in lines:
+            ln = (ln or "").strip()
+            if not ln:
+                continue
+            pairs = re.findall(r"([A-Za-z가-힣_]+)\s*[:=]\s*(-?\d+\.?\d*)", ln)
+            if pairs:
+                for label, val in pairs:
+                    add(label.strip(), val)
+                continue
+            nums = re.findall(r"-?\d+\.?\d*", ln)
+            if len(nums) >= 2:
+                for i, v in enumerate(nums):
+                    add(f"ch{i+1}", v)
+            elif len(nums) == 1:
+                add("value", nums[0])
+        return series
+
+    def _read_serial_raw(
+        self, port: Optional[str], baud: int, duration_s: float, max_lines: int
+    ) -> dict:
+        """시리얼 원시 줄 읽기 (read_serial/show_*가 공유)."""
+        try:
+            import serial  # pyserial
+        except ImportError:
+            return {"status": "error", "message": "pyserial 미설치. 'pip install pyserial' 필요."}
+
+        resolved_port = port or self.default_port
+        if not resolved_port:
+            info = self.list_boards()
+            if info.get("status") == "ok" and info.get("boards"):
+                resolved_port = info["boards"][0]["port"]
+        if not resolved_port:
+            return {"status": "error", "message": "연결된 보드를 찾지 못했습니다."}
+
+        import time as _time
+        lines: list[str] = []
+        try:
+            with serial.Serial(resolved_port, baud, timeout=0.5) as ser:
+                end = _time.time() + max(0.5, min(duration_s, 30.0))
+                while _time.time() < end and len(lines) < max_lines:
+                    raw = ser.readline()
+                    if not raw:
+                        continue
+                    text = raw.decode("utf-8", errors="replace").strip()
+                    if text:
+                        lines.append(text)
+        except Exception as e:  # noqa: BLE001
+            return {
+                "status": "error",
+                "port": resolved_port,
+                "message": f"시리얼 읽기 실패: {type(e).__name__}: {e}. "
+                           f"(포트 점유 여부·baud 확인)",
+            }
+        return {"status": "ok", "port": resolved_port, "baud": baud, "lines": lines}
+
+    def show_value(
+        self, port: Optional[str] = None, baud: int = 9600, duration_s: float = 3.0
+    ) -> dict:
+        """시리얼에서 최신 수치를 읽어 HUD '수치 패널'용 데이터를 만든다.
+
+        반환 dict의 'hud' 키를 호출부(EddieCore)가 DataBus로 HUD에 전달한다.
+        """
+        raw = self._read_serial_raw(port, baud, duration_s, max_lines=60)
+        if raw["status"] != "ok":
+            return raw
+        series = self._parse_serial_values(raw["lines"])
+        if not series:
+            return {"status": "error", "message": "수치를 찾지 못했습니다. baud·출력 형식 확인."}
+        # 각 라벨의 최신값
+        latest = {label: vals[-1] for label, vals in series.items() if vals}
+        return {
+            "status": "ok",
+            "port": raw["port"],
+            "values": latest,
+            "hud": {"kind": "value", "values": latest},
+        }
+
+    def show_plot(
+        self, port: Optional[str] = None, baud: int = 9600, duration_s: float = 6.0
+    ) -> dict:
+        """시리얼 값을 일정시간 모아 HUD '시리얼 플로터'용 시계열을 만든다."""
+        raw = self._read_serial_raw(port, baud, duration_s, max_lines=300)
+        if raw["status"] != "ok":
+            return raw
+        series = self._parse_serial_values(raw["lines"])
+        if not series:
+            return {"status": "error", "message": "그릴 수치를 찾지 못했습니다. baud·출력 형식 확인."}
+        return {
+            "status": "ok",
+            "port": raw["port"],
+            "points": {k: len(v) for k, v in series.items()},
+            "hud": {"kind": "plot", "series": series},
+        }
+
+    # ====================================================================
+    # 실시간 모니터링 (S2) — 시리얼을 계속 읽어 콜백으로 최신값 스트리밍
+    # ====================================================================
+    def start_monitor(
+        self,
+        on_update,
+        port: Optional[str] = None,
+        baud: int = 9600,
+        window: int = 60,
+        interval_s: float = 0.4,
+    ) -> dict:
+        """시리얼 상시 모니터링 시작.
+
+        백그라운드 스레드에서 시리얼을 계속 읽으며, interval_s마다
+        on_update(payload)를 호출한다. payload는 다음 두 종류를 함께 담는다:
+          - 최신값(values): 수치 패널용
+          - 시계열(series): 그래프용 (최근 window개 슬라이딩)
+        '값/그래프 보여줘' 시 시작, '닫아줘/그만' 시 stop_monitor로 중지.
+
+        on_update: callable(dict) — WebSocket broadcast 등으로 연결.
+        """
+        try:
+            import serial  # noqa: F401  (가용성 확인)
+        except ImportError:
+            return {"status": "error", "message": "pyserial 미설치. 'pip install pyserial' 필요."}
+
+        # 이미 돌고 있으면 재시작
+        self.stop_monitor()
+
+        resolved_port = port or self.default_port
+        if not resolved_port:
+            info = self.list_boards()
+            if info.get("status") == "ok" and info.get("boards"):
+                resolved_port = info["boards"][0]["port"]
+        if not resolved_port:
+            return {"status": "error", "message": "연결된 보드를 찾지 못했습니다."}
+
+        import threading
+        from collections import deque, OrderedDict
+
+        self._monitor_stop = threading.Event()
+        self._monitor_port = resolved_port
+
+        def _worker():
+            import time as _t
+            import serial as _serial
+            # 라벨별 슬라이딩 윈도우
+            history: "OrderedDict[str, deque]" = OrderedDict()
+            latest: dict = {}
+            last_emit = 0.0
+            try:
+                ser = _serial.Serial(resolved_port, baud, timeout=0.3)
+            except Exception as e:  # noqa: BLE001
+                on_update({"kind": "monitor_error",
+                           "message": f"시리얼 열기 실패: {type(e).__name__}: {e}"})
+                return
+            try:
+                while not self._monitor_stop.is_set():
+                    raw = ser.readline()
+                    if raw:
+                        text = raw.decode("utf-8", errors="replace").strip()
+                        if text:
+                            parsed = self._parse_serial_values([text])
+                            for label, vals in parsed.items():
+                                if not vals:
+                                    continue
+                                v = vals[-1]
+                                latest[label] = v
+                                if label not in history:
+                                    history[label] = deque(maxlen=window)
+                                history[label].append(v)
+                    # 주기적으로만 emit (과도한 push 방지)
+                    now = _t.monotonic()
+                    if now - last_emit >= interval_s and latest:
+                        last_emit = now
+                        on_update({
+                            "kind": "monitor",
+                            "values": dict(latest),
+                            "series": {k: list(v) for k, v in history.items()},
+                        })
+            except Exception as e:  # noqa: BLE001
+                on_update({"kind": "monitor_error",
+                           "message": f"모니터링 중단: {type(e).__name__}: {e}"})
+            finally:
+                try:
+                    ser.close()
+                except Exception:  # noqa: BLE001
+                    pass
+
+        self._monitor_thread = threading.Thread(target=_worker, daemon=True)
+        self._monitor_thread.start()
+        return {"status": "ok", "port": resolved_port, "message": "실시간 모니터링을 시작했습니다."}
+
+    def stop_monitor(self) -> dict:
+        """모니터링 중지."""
+        ev = getattr(self, "_monitor_stop", None)
+        th = getattr(self, "_monitor_thread", None)
+        if ev is not None:
+            ev.set()
+        if th is not None and th.is_alive():
+            th.join(timeout=1.5)
+        self._monitor_thread = None
+        return {"status": "ok", "message": "모니터링을 중지했습니다."}
+
+    def is_monitoring(self) -> bool:
+        th = getattr(self, "_monitor_thread", None)
+        return th is not None and th.is_alive()

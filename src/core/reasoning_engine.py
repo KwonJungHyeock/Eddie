@@ -94,6 +94,10 @@ class EddieCore:
         self._browser = None      # BrowserControl (MOD-TOL-003), 세션 재사용
         self._arduino = None      # ArduinoControl (MOD-TOL-005)
 
+        # 시작 시 HUD 데이터 채널 초기화 — 이전 세션의 잔류 패널이
+        # 켜자마자 다시 뜨는 것을 방지 (kind=hide 로 비움).
+        self._publish_hud_data({"kind": "hide"})
+
     @staticmethod
     def _load_env() -> None:
         """프로젝트 루트의 .env 를 로드한다.
@@ -478,6 +482,128 @@ class EddieCore:
                     },
                 },
             },
+            {
+                "type": "function",
+                "function": {
+                    "name": "arduino_show_value",
+                    "description": (
+                        "센서 수치를 HUD 화면에 '수치 패널'로 띄운다. 사용자가 "
+                        "'값 보여줘', '수치 보여줘', '패널로 띄워줘', '화면에 띄워줘', "
+                        "'온도 화면에 보여줘'처럼 말하면 이 도구를 호출한다. "
+                        "시리얼에서 최신값을 읽어 표시한다. LCD 같은 물리 모듈이 아니라 "
+                        "EDDIE 화면(HUD)에 직접 표시되는 기능이다. 물리 LCD 모듈을 언급하지 말 것."
+                    ),
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "baud": {"type": "integer", "description": "통신 속도 (기본 9600)"},
+                            "duration_s": {"type": "number", "description": "수신 시간 초 (기본 3)"},
+                        },
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "arduino_show_plot",
+                    "description": (
+                        "센서 값을 HUD 화면에 '그래프(시리얼 플로터)'로 띄운다. 사용자가 "
+                        "'그래프로 보여줘', '플로터로 보여줘', '그래프로 띄워줘', "
+                        "'추이 보여줘'처럼 말하면 이 도구를 호출한다. 일정 시간 값을 모아 "
+                        "시계열 그래프로 표시한다. EDDIE 화면(HUD)에 직접 그려진다."
+                    ),
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "baud": {"type": "integer", "description": "통신 속도 (기본 9600)"},
+                            "duration_s": {"type": "number", "description": "수집 시간 초 (기본 6)"},
+                        },
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "hud_hide_panel",
+                    "description": (
+                        "HUD 화면에 떠 있는 데이터 패널을 닫는다. 사용자가 "
+                        "'패널 닫아줘', '화면에서 없애줘', '그래프 치워줘', '수치 닫아줘'라고 할 때 사용. "
+                        "target으로 어느 패널을 닫을지 지정한다(기본 all)."
+                    ),
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "target": {
+                                "type": "string",
+                                "enum": ["value", "plot", "all"],
+                                "description": "value=수치패널, plot=그래프패널, all=둘 다 (기본)",
+                            },
+                        },
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "hud_move_panel",
+                    "description": (
+                        "HUD 데이터 패널의 위치를 옮긴다. 사용자가 '왼쪽으로 옮겨줘', "
+                        "'그래프를 오른쪽 위로', '수치를 가운데로' 같이 말할 때 사용. "
+                        "target으로 어느 패널을 옮길지, position에 위치를 넣는다."
+                    ),
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "target": {
+                                "type": "string",
+                                "enum": ["value", "plot", "all"],
+                                "description": "value=수치패널, plot=그래프패널, all=둘 다 (기본)",
+                            },
+                            "position": {
+                                "type": "string",
+                                "enum": [
+                                    "top-left", "top-center", "top-right",
+                                    "center-left", "center", "center-right",
+                                    "bottom-left", "bottom-center", "bottom-right",
+                                ],
+                                "description": (
+                                    "위치. 왼쪽=center-left, 오른쪽=center-right, "
+                                    "왼쪽위=top-left, 가운데=center, 오른쪽아래=bottom-right"
+                                ),
+                            },
+                        },
+                        "required": ["position"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "hud_resize_panel",
+                    "description": (
+                        "HUD 데이터 패널의 크기를 조절한다. 사용자가 '패널 키워줘', "
+                        "'크게', '더 크게', '줄여줘', '작게'라고 할 때 사용. "
+                        "size는 1(작음)~3(큼). 'small/medium/large'도 가능. "
+                        "target으로 어느 패널인지 지정(기본 all)."
+                    ),
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "target": {
+                                "type": "string",
+                                "enum": ["value", "plot", "all"],
+                                "description": "value=수치, plot=그래프, all=둘 다 (기본)",
+                            },
+                            "size": {
+                                "type": "string",
+                                "enum": ["1", "2", "3", "small", "medium", "large", "up", "down"],
+                                "description": "1~3 단계, 또는 up(키우기)/down(줄이기)",
+                            },
+                        },
+                        "required": ["size"],
+                    },
+                },
+            },
         ]
 
     # ============================================================
@@ -538,6 +664,43 @@ class EddieCore:
         shot_dir.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         return str(shot_dir / f"shot_{stamp}.png")
+
+    def _get_ws_server(self):
+        """센서 데이터 실시간 전송용 WebSocket 서버 (지연 생성·시작)."""
+        if getattr(self, "_ws_server", None) is None:
+            try:
+                self._ensure_src_on_path()
+                from core.data_ws_server import DataWebSocketServer
+                self._ws_server = DataWebSocketServer()
+                self._ws_server.start()
+            except Exception:  # noqa: BLE001
+                self._ws_server = None  # WS 실패해도 파일 채널로 폴백
+        return self._ws_server
+
+    def _publish_hud_data(self, payload: dict) -> None:
+        """HUD 데이터 채널에 쓴다 — WebSocket(실시간) + 파일(폴백) 양쪽.
+
+        실시간성이 중요하므로 WebSocket으로 즉시 push하고,
+        WS 미연결 대비 파일(eddie_data.json)에도 기록한다.
+        """
+        import time as _time
+        self._hud_seq = getattr(self, "_hud_seq", 0) + 1
+        body = {**payload, "ts": _time.time(), "seq": self._hud_seq}
+
+        # 1) WebSocket 실시간 push (연결돼 있으면 즉시 전달)
+        ws = self._get_ws_server()
+        if ws is not None:
+            ws.broadcast(body)
+
+        # 2) 파일 폴백 (WS 미연결 시 HUD가 폴링으로 받음)
+        project_root = Path(__file__).resolve().parent.parent.parent
+        data_path = project_root / "eddie_data.json"
+        try:
+            tmp = data_path.with_suffix(".json.tmp")
+            tmp.write_text(json.dumps(body, ensure_ascii=False), encoding="utf-8")
+            os.replace(str(tmp), str(data_path))
+        except OSError:
+            pass
 
     def _exec_tool(self, name: str, args: dict) -> str:
         """도구 1건 실행 → 결과를 JSON 문자열로 반환 (모델에 다시 주입)."""
@@ -606,6 +769,52 @@ class EddieCore:
                         baud=args.get("baud", 9600),
                         duration_s=args.get("duration_s", 3.0),
                     ),
+                    ensure_ascii=False,
+                )
+            if name == "arduino_show_value":
+                # 실시간 모니터링 시작 → 콜백이 WebSocket으로 수치+그래프 push
+                ard = self._get_arduino()
+                r = ard.start_monitor(
+                    on_update=lambda p: self._publish_hud_data(p),
+                    baud=args.get("baud", 9600),
+                )
+                return json.dumps(r, ensure_ascii=False)
+            if name == "arduino_show_plot":
+                ard = self._get_arduino()
+                r = ard.start_monitor(
+                    on_update=lambda p: self._publish_hud_data(p),
+                    baud=args.get("baud", 9600),
+                )
+                return json.dumps(r, ensure_ascii=False)
+            if name == "hud_hide_panel":
+                target = args.get("target", "all")
+                # 모니터링 중지 (실시간 갱신 멈춤). all 또는 둘 중 하나만 닫아도
+                # 시리얼은 하나라 모니터링은 통째로 멈춘다.
+                try:
+                    self._get_arduino().stop_monitor()
+                except Exception:  # noqa: BLE001
+                    pass
+                self._publish_hud_data({"kind": "hide", "target": target})
+                return json.dumps(
+                    {"status": "ok", "target": target, "message": "패널을 닫았습니다."},
+                    ensure_ascii=False,
+                )
+            if name == "hud_move_panel":
+                pos = args.get("position", "center-right")
+                target = args.get("target", "all")
+                self._publish_hud_data({"kind": "move", "position": pos, "target": target})
+                return json.dumps(
+                    {"status": "ok", "target": target, "position": pos,
+                     "message": f"패널을 옮겼습니다."},
+                    ensure_ascii=False,
+                )
+            if name == "hud_resize_panel":
+                size = str(args.get("size", "up"))
+                target = args.get("target", "all")
+                self._publish_hud_data({"kind": "resize", "size": size, "target": target})
+                return json.dumps(
+                    {"status": "ok", "target": target, "size": size,
+                     "message": "패널 크기를 조절했습니다."},
                     ensure_ascii=False,
                 )
 
@@ -761,6 +970,21 @@ class EddieCore:
                 pass
             finally:
                 self._browser = None
+        # 시리얼 모니터링 중지
+        if self._arduino is not None:
+            try:
+                self._arduino.stop_monitor()
+            except Exception:  # noqa: BLE001
+                pass
+        # WebSocket 서버 종료
+        ws = getattr(self, "_ws_server", None)
+        if ws is not None:
+            try:
+                ws.stop()
+            except Exception:  # noqa: BLE001
+                pass
+            finally:
+                self._ws_server = None
 
     # === 유틸리티 메서드 ===
 
